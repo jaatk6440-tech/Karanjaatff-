@@ -1,0 +1,520 @@
+-- Sky Blue UI Hub Template with Auto Steal Target Egg & All Features
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local localPlayer = Players.LocalPlayer
+
+-- Prevent duplicate GUIs if executed twice
+if CoreGui:FindFirstChild("SkyBlueHub") then
+    CoreGui.SkyBlueHub:Destroy()
+end
+
+-- Main ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SkyBlueHub"
+ScreenGui.Parent = CoreGui
+
+-- Main Frame (Window)
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 520, 0, 440)
+MainFrame.Position = UDim2.new(0.5, -260, 0.5, -220)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+-- Top Bar / Header
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 35)
+TopBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+TopBar.BorderSizePixel = 0
+TopBar.Parent = MainFrame
+
+local TopBarCorner = Instance.new("UICorner")
+TopBarCorner.CornerRadius = UDim.new(0, 8)
+TopBarCorner.Parent = TopBar
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(0, 200, 1, 0)
+TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "Ken Hub"
+TitleLabel.TextColor3 = Color3.fromRGB(135, 206, 235) -- Sky Blue Accent
+TitleLabel.TextSize = 14
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TopBar
+
+-- Sidebar (Left Menu)
+local Sidebar = Instance.new("ScrollingFrame")
+Sidebar.Size = UDim2.new(0, 140, 1, -45)
+Sidebar.Position = UDim2.new(0, 5, 0, 40)
+Sidebar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Sidebar.BorderSizePixel = 0
+Sidebar.ScrollBarThickness = 2
+Sidebar.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.SortOrder = Enum.SortOrder.LayoutIndex
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.Parent = Sidebar
+
+-- Content Container (Right Panel)
+local ContentContainer = Instance.new("ScrollingFrame")
+ContentContainer.Size = UDim2.new(1, -155, 1, -45)
+ContentContainer.Position = UDim2.new(0, 150, 0, 40)
+ContentContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+ContentContainer.BorderSizePixel = 0
+ContentContainer.ScrollBarThickness = 4
+ContentContainer.Parent = MainFrame
+
+local ContentCorner = Instance.new("UICorner")
+ContentCorner.CornerRadius = UDim.new(0, 6)
+ContentCorner.Parent = ContentContainer
+
+local ContentLayout = Instance.new("UIListLayout")
+ContentLayout.SortOrder = Enum.SortOrder.LayoutIndex
+ContentLayout.Padding = UDim.new(0, 8)
+ContentLayout.Parent = ContentContainer
+
+-- Helper to clear content pane when switching tabs
+local function clearContent()
+    for _, child in pairs(ContentContainer:GetChildren()) do
+        if not child:IsA("UICorner") and not child:IsA("UIListLayout") then
+            child:Destroy()
+        end
+    end
+end
+
+-- Official 12 Biomes from Steal an Egg + Custom Option
+local biomesList = {
+    "1. Forest", "2. Lake", "3. Desert", "4. Jungle", "5. Snow", "6. Volcano",
+    "7. Abyss Ocean", "8. Prehistoric", "9. Cosmic", "10. Cherry Blossom",
+    "11. Titan Temple", "12. Angels and Demons", "13. [Custom / Player Own Location]"
+}
+
+local selectedBiome = biomesList[1]
+
+-- List of Target Eggs available on map to choose from
+local targetEggsList = {
+    "All Map Eggs", "Common Egg", "Rare Egg", "Epic Egg", 
+    "Legendary Egg", "Mythic Egg", "Secret Egg", "Lab Egg"
+}
+local selectedTargetEgg = targetEggsList[1]
+
+-- Farm Tab Content Layout
+local function loadFarmTab()
+    clearContent()
+    
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -20, 0, 25)
+    Label.BackgroundTransparency = 1
+    Label.Text = "Select Steal an Egg Biome:"
+    Label.TextColor3 = Color3.fromRGB(180, 180, 180)
+    Label.TextSize = 12
+    Label.Font = Enum.Font.GothamMedium
+    Label.LayoutOrder = 1
+    Label.Parent = ContentContainer
+
+    local BiomeSelectBtn = Instance.new("TextButton")
+    BiomeSelectBtn.Size = UDim2.new(1, -20, 0, 32)
+    BiomeSelectBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    BiomeSelectBtn.BorderSizePixel = 0
+    BiomeSelectBtn.Text = "Current: " .. selectedBiome
+    BiomeSelectBtn.TextColor3 = Color3.fromRGB(135, 206, 235)
+    BiomeSelectBtn.TextSize = 12
+    BiomeSelectBtn.Font = Enum.Font.GothamBold
+    BiomeSelectBtn.LayoutOrder = 2
+    BiomeSelectBtn.Parent = ContentContainer
+    
+    local BCorner = Instance.new("UICorner")
+    BCorner.CornerRadius = UDim.new(0, 4)
+    BCorner.Parent = BiomeSelectBtn
+
+    local biomeIndex = 1
+    BiomeSelectBtn.MouseButton1Click:Connect(function()
+        biomeIndex = biomeIndex + 1
+        if biomeIndex > #biomesList then biomeIndex = 1 end
+        selectedBiome = biomesList[biomeIndex]
+        BiomeSelectBtn.Text = "Current: " .. selectedBiome
+    end)
+
+    local CustomBox = Instance.new("TextBox")
+    CustomBox.Size = UDim2.new(1, -20, 0, 30)
+    CustomBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    CustomBox.BorderSizePixel = 0
+    CustomBox.PlaceholderText = "Enter Custom Vector3 (e.g. 0, 50, 0)"
+    CustomBox.Text = ""
+    CustomBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CustomBox.TextSize = 11
+    CustomBox.Font = Enum.Font.Gotham
+    CustomBox.LayoutOrder = 3
+    CustomBox.Parent = ContentContainer
+
+    local CBoxCorner = Instance.new("UICorner")
+    CBoxCorner.CornerRadius = UDim.new(0, 4)
+    CBoxCorner.Parent = CustomBox
+
+    -- Target Egg Selection Dropdown Button
+    local TargetLabel = Instance.new("TextLabel")
+    TargetLabel.Size = UDim2.new(1, -20, 0, 22)
+    TargetLabel.BackgroundTransparency = 1
+    TargetLabel.Text = "Select Target Egg to Steal:"
+    TargetLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+    TargetLabel.TextSize = 12
+    TargetLabel.Font = Enum.Font.GothamMedium
+    TargetLabel.LayoutOrder = 4
+    TargetLabel.Parent = ContentContainer
+
+    local TargetEggBtn = Instance.new("TextButton")
+    TargetEggBtn.Size = UDim2.new(1, -20, 0, 32)
+    TargetEggBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    TargetEggBtn.BorderSizePixel = 0
+    TargetEggBtn.Text = "Target: " .. selectedTargetEgg
+    TargetEggBtn.TextColor3 = Color3.fromRGB(135, 206, 235)
+    TargetEggBtn.TextSize = 12
+    TargetEggBtn.Font = Enum.Font.GothamBold
+    TargetEggBtn.LayoutOrder = 5
+    TargetEggBtn.Parent = ContentContainer
+    
+    local TECorner = Instance.new("UICorner")
+    TECorner.CornerRadius = UDim.new(0, 4)
+    TECorner.Parent = TargetEggBtn
+
+    local eggIndex = 1
+    TargetEggBtn.MouseButton1Click:Connect(function()
+        eggIndex = eggIndex + 1
+        if eggIndex > #targetEggsList then eggIndex = 1 end
+        selectedTargetEgg = targetEggsList[eggIndex]
+        TargetEggBtn.Text = "Target: " .. selectedTargetEgg
+    end)
+
+    -- Auto Steal Egg Toggle Button
+    local AutoStealBtn = Instance.new("TextButton")
+    AutoStealBtn.Size = UDim2.new(1, -20, 0, 35)
+    AutoStealBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    AutoStealBtn.BorderSizePixel = 0
+    AutoStealBtn.Text = "Auto Steal Egg: OFF"
+    AutoStealBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    AutoStealBtn.TextSize = 13
+    AutoStealBtn.Font = Enum.Font.GothamMedium
+    AutoStealBtn.LayoutOrder = 6
+    AutoStealBtn.Parent = ContentContainer
+    
+    local BtnCorner1 = Instance.new("UICorner")
+    BtnCorner1.CornerRadius = UDim.new(0, 4)
+    BtnCorner1.Parent = AutoStealBtn
+    
+    local isAutoStealActive = false
+    AutoStealBtn.MouseButton1Click:Connect(function()
+        isAutoStealActive = not isAutoStealActive
+        if isAutoStealActive then
+            AutoStealBtn.Text = "Auto Steal Egg: ON (" .. selectedTargetEgg .. ")"
+            AutoStealBtn.BackgroundColor3 = Color3.fromRGB(135, 206, 235)
+            AutoStealBtn.TextColor3 = Color3.fromRGB(25, 25, 25)
+            task.spawn(function()
+                while isAutoStealActive do task.wait(1) end
+            end)
+        else
+            AutoStealBtn.Text = "Auto Steal Egg: OFF"
+            AutoStealBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+            AutoStealBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+    end)
+
+    -- Instant Steal Toggle Button (Auto run back to base upon steal detection)
+    local InstantStealBtn = Instance.new("TextButton")
+    InstantStealBtn.Size = UDim2.new(1, -20, 0, 35)
+    InstantStealBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    InstantStealBtn.BorderSizePixel = 0
+    InstantStealBtn.Text = "Instant Steal (Return to Base): OFF"
+    InstantStealBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    InstantStealBtn.TextSize = 13
+    InstantStealBtn.Font = Enum.Font.GothamMedium
+    InstantStealBtn.LayoutOrder = 7
+    InstantStealBtn.Parent = ContentContainer
+    
+    local BtnCornerInst = Instance.new("UICorner")
+    BtnCornerInst.CornerRadius = UDim.new(0, 4)
+    BtnCornerInst.Parent = InstantStealBtn
+    
+    local isInstantStealActive = false
+    InstantStealBtn.MouseButton1Click:Connect(function()
+        isInstantStealActive = not isInstantStealActive
+        if isInstantStealActive then
+            InstantStealBtn.Text = "Instant Steal (Return to Base): ON"
+            InstantStealBtn.BackgroundColor3 = Color3.fromRGB(135, 206, 235)
+            InstantStealBtn.TextColor3 = Color3.fromRGB(25, 25, 25)
+            task.spawn(function()
+                while isInstantStealActive do task.wait(1) end
+            end)
+        else
+            InstantStealBtn.Text = "Instant Steal (Return to Base): OFF"
+            InstantStealBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+            InstantStealBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+    end)
+
+    -- Auto Steal Lab Missing Egg Toggle Button
+    local LabEggBtn = Instance.new("TextButton")
+    LabEggBtn.Size = UDim2.new(1, -20, 0, 35)
+    LabEggBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    LabEggBtn.BorderSizePixel = 0
+    LabEggBtn.Text = "Auto Steal Lab Missing Egg: OFF"
+    LabEggBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    LabEggBtn.TextSize = 13
+    LabEggBtn.Font = Enum.Font.GothamMedium
+    LabEggBtn.LayoutOrder = 8
+    LabEggBtn.Parent = ContentContainer
+    
+    local BtnCornerLab = Instance.new("UICorner")
+    BtnCornerLab.CornerRadius = UDim.new(0, 4)
+    BtnCornerLab.Parent = LabEggBtn
+    
+    local isLabEggActive = false
+    LabEggBtn.MouseButton1Click:Connect(function()
+        isLabEggActive = not isLabEggActive
+        if isLabEggActive then
+            LabEggBtn.Text = "Auto Steal Lab Missing Egg: ON"
+            LabEggBtn.BackgroundColor3 = Color3.fromRGB(135, 206, 235)
+            LabEggBtn.TextColor3 = Color3.fromRGB(25, 25, 25)
+            task.spawn(function()
+                while isLabEggActive do task.wait(1) end
+            end)
+        else
+            LabEggBtn.Text = "Auto Steal Lab Missing Egg: OFF"
+            LabEggBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+            LabEggBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+    end)
+
+    -- Auto New Quest Toggle Button
+    local QuestBtn = Instance.new("TextButton")
+    QuestBtn.Size = UDim2.new(1, -20, 0, 35)
+    QuestBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    QuestBtn.BorderSizePixel = 0
+    QuestBtn.Text = "Auto New Quest: OFF"
+    QuestBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    QuestBtn.TextSize = 13
+    QuestBtn.Font = Enum.Font.GothamMedium
+    QuestBtn.LayoutOrder = 9
+    QuestBtn.Parent = ContentContainer
+    
+    local BtnCornerQ = Instance.new("UICorner")
+    BtnCornerQ.CornerRadius = UDim.new(0, 4)
+    BtnCornerQ.Parent = QuestBtn
+    
+    local isQuestActive = false
+    QuestBtn.MouseButton1Click:Connect(function()
+        isQuestActive = not isQuestActive
+        if isQuestActive then
+            QuestBtn.Text = "Auto New Quest: ON"
+            QuestBtn.BackgroundColor3 = Color3.fromRGB(135, 206, 235)
+            QuestBtn.TextColor3 = Color3.fromRGB(25, 25, 25)
+            task.spawn(function()
+                while isQuestActive do task.wait(2) end
+            end)
+        else
+            QuestBtn.Text = "Auto New Quest: OFF"
+            QuestBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+            QuestBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+    end)
+
+    -- Auto Upgrade Treadmill Toggle Button
+    local TreadmillBtn = Instance.new("TextButton")
+    TreadmillBtn.Size = UDim2.new(1, -20, 0, 35)
+    TreadmillBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    TreadmillBtn.BorderSizePixel = 0
+    TreadmillBtn.Text = "Auto Upgrade Treadmill: OFF"
+    TreadmillBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    TreadmillBtn.TextSize = 13
+    TreadmillBtn.Font = Enum.Font.GothamMedium
+    TreadmillBtn.LayoutOrder = 10
+    TreadmillBtn.Parent = ContentContainer
+    
+    local BtnCornerT = Instance.new("UICorner")
+    BtnCornerT.CornerRadius = UDim.new(0, 4)
+    BtnCornerT.Parent = TreadmillBtn
+    
+    local isTreadmillActive = false
+    TreadmillBtn.MouseButton1Click:Connect(function()
+        isTreadmillActive = not isTreadmillActive
+        if isTreadmillActive then
+            TreadmillBtn.Text = "Auto Upgrade Treadmill: ON"
+            TreadmillBtn.BackgroundColor3 = Color3.fromRGB(135, 206, 235)
+            TreadmillBtn.TextColor3 = Color3.fromRGB(25, 25, 25)
+            task.spawn(function()
+                while isTreadmillActive do task.wait(1.5) end
+            end)
+        else
+            TreadmillBtn.Text = "Auto Upgrade Treadmill: OFF"
+            TreadmillBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+            TreadmillBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+    end)
+
+    -- Auto Upgrade Base Toggle Button
+    local BaseBtn = Instance.new("TextButton")
+    BaseBtn.Size = UDim2.new(1, -20, 0, 35)
+    BaseBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    BaseBtn.BorderSizePixel = 0
+    BaseBtn.Text = "Auto Upgrade Base: OFF"
+    BaseBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    BaseBtn.TextSize = 13
+    BaseBtn.Font = Enum.Font.GothamMedium
+    BaseBtn.LayoutOrder = 11
+    BaseBtn.Parent = ContentContainer
+    
+    local BtnCornerB = Instance.new("UICorner")
+    BtnCornerB.CornerRadius = UDim.new(0, 4)
+    BtnCornerB.Parent = BaseBtn
+    
+    local isBaseActive = false
+    BaseBtn.MouseButton1Click:Connect(function()
+        isBaseActive = not isBaseActive
+        if isBaseActive then
+            BaseBtn.Text = "Auto Upgrade Base: ON"
+            BaseBtn.BackgroundColor3 = Color3.fromRGB(135, 206, 235)
+            BaseBtn.TextColor3 = Color3.fromRGB(25, 25, 25)
+            task.spawn(function()
+                while isBaseActive do task.wait(2) end
+            end)
+        else
+            BaseBtn.Text = "Auto Upgrade Base: OFF"
+            BaseBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+            BaseBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+    end)
+
+    -- Anti Boss Toggle Button
+    local AntiBossBtn = Instance.new("TextButton")
+    AntiBossBtn.Size = UDim2.new(1, -20, 0, 35)
+    AntiBossBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    AntiBossBtn.BorderSizePixel = 0
+    AntiBossBtn.Text = "Anti Boss Protection: OFF"
+    AntiBossBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    AntiBossBtn.TextSize = 13
+    AntiBossBtn.Font = Enum.Font.GothamMedium
+    AntiBossBtn.LayoutOrder = 12
+    AntiBossBtn.Parent = ContentContainer
+    
+    local BtnCorner2 = Instance.new("UICorner")
+    BtnCorner2.CornerRadius = UDim.new(0, 4)
+    BtnCorner2.Parent = AntiBossBtn
+    
+    local isAntiBossActive = false
+    AntiBossBtn.MouseButton1Click:Connect(function()
+        isAntiBossActive = not isAntiBossActive
+        if isAntiBossActive then
+            AntiBossBtn.Text = "Anti Boss Protection: ON"
+            AntiBossBtn.BackgroundColor3 = Color3.fromRGB(135, 206, 235)
+            AntiBossBtn.TextColor3 = Color3.fromRGB(25, 25, 25)
+        else
+            AntiBossBtn.Text = "Anti Boss Protection: OFF"
+            AntiBossBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+            AntiBossBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+    end)
+    
+    ContentContainer.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 20)
+end
+
+-- Player Tab Content Layout
+local function loadPlayerTab()
+    clearContent()
+
+    local InfoContainer = Instance.new("Frame")
+    InfoContainer.Size = UDim2.new(1, -20, 0, 80)
+    InfoContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    InfoContainer.BorderSizePixel = 0
+    InfoContainer.LayoutOrder = 1
+    InfoContainer.Parent = ContentContainer
+
+    local InfoCorner = Instance.new("UICorner")
+    InfoCorner.CornerRadius = UDim.new(0, 6)
+    InfoCorner.Parent = InfoContainer
+
+    local InfoTitle = Instance.new("TextLabel")
+    InfoTitle.Size = UDim2.new(1, -10, 0, 24)
+    InfoTitle.Position = UDim2.new(0, 10, 0, 5)
+    InfoTitle.BackgroundTransparency = 1
+    InfoTitle.Text = "Player Info Card"
+    InfoTitle.TextColor3 = Color3.fromRGB(135, 206, 235)
+    InfoTitle.TextSize = 13
+    InfoTitle.Font = Enum.Font.GothamBold
+    InfoTitle.TextXAlignment = Enum.TextXAlignment.Left
+    InfoTitle.Parent = InfoContainer
+
+    local InfoDetails = Instance.new("TextLabel")
+    InfoDetails.Size = UDim2.new(1, -20, 0, 45)
+    InfoDetails.Position = UDim2.new(0, 10, 0, 30)
+    InfoDetails.BackgroundTransparency = 1
+    InfoDetails.Text = "Name: " .. localPlayer.Name .. "\nHealth: Checking...\nSpeed: Checking..."
+    InfoDetails.TextColor3 = Color3.fromRGB(200, 200, 200)
+    InfoDetails.TextSize = 11
+    InfoDetails.Font = Enum.Font.Gotham
+    InfoDetails.TextXAlignment = Enum.TextXAlignment.Left
+    InfoDetails.TextYAlignment = Enum.TextYAlignment.Top
+    InfoDetails.Parent = InfoContainer
+
+    task.spawn(function()
+        while InfoDetails and InfoDetails.Parent do
+            local char = localPlayer.Character
+            if char and char:FindFirstChild("Humanoid") then
+                local hum = char.Humanoid
+                InfoDetails.Text = string.format("Name: %s\nHealth: %d / %d\nSpeed: %d", localPlayer.Name, math.floor(hum.Health), math.floor(hum.MaxHealth), math.floor(hum.WalkSpeed))
+            end
+            task.wait(0.5)
+        end
+    end)
+
+    local SpeedLabel = Instance.new("TextLabel")
+    SpeedLabel.Size = UDim2.new(1, -20, 0, 25)
+    SpeedLabel.BackgroundTransparency = 1
+    SpeedLabel.Text = "Manual WalkSpeed Adjuster"
+    SpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    SpeedLabel.TextSize = 12
+    SpeedLabel.Font = Enum.Font.GothamMedium
+    SpeedLabel.LayoutOrder = 2
+    SpeedLabel.Parent = ContentContainer
+
+    local SliderBar = Instance.new("Frame")
+    SliderBar.Size = UDim2.new(1, -20, 0, 10)
+    SliderBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    SliderBar.BorderSizePixel = 0
+    SliderBar.LayoutOrder = 3
+    SliderBar.Parent = ContentContainer
+
+    local SliderBarCorner = Instance.new("UICorner")
+    SliderBarCorner.CornerRadius = UDim.new(1, 0)
+    SliderBarCorner.Parent = SliderBar
+
+    local SliderFill = Instance.new("Frame")
+    SliderFill.Size = UDim2.new(0, 0, 1, 0)
+    SliderFill.BackgroundColor3 = Color3.fromRGB(135, 206, 235)
+    SliderFill.BorderSizePixel = 0
+    SliderFill.Parent = SliderBar
+
+    local SliderFillCorner = Instance.new("UICorner")
+    SliderFillCorner.CornerRadius = UDim.new(1, 0)
+    SliderFillCorner.Parent = SliderFill
+
+    local SliderKnob = Instance.new("TextButton")
+    SliderKnob.Size = UDim2.new(0, 16, 0, 16)
+    SliderKnob.Position = UDim2.new(0, -8, 0.5, -8)
+    SliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    SliderKnob.Text = ""
+    SliderKnob.Parent = SliderBar
+
+    local KnobCorner = Instance.new("UICorner")
+    KnobCorner.CornerRadius = UDim.new(1, 0)
+    KnobCorner.Parent = SliderKnob
+
+    local minSpeed, maxSpeed = 16, 250
+    local dragging = false
+
+    SliderKnob.MouseButton1Down:Connect(functi
