@@ -16,7 +16,6 @@ pcall(function()
     if CoreGui then TargetParent = CoreGui end
 end)
 
--- Remove existing instance
 if TargetParent:FindFirstChild("KenHubUI") then
     TargetParent.KenHubUI:Destroy()
 end
@@ -29,7 +28,6 @@ KenHubUI.ResetOnSpawn = false
 -- Config
 local CORRECT_KEY = "KEN-HUB-2026"
 local FeatureStates = {}
-local ToggleKeybind = Enum.KeyCode.RightControl
 local ActiveAccent = Color3.fromRGB(0, 195, 255)
 
 local Themes = {
@@ -60,9 +58,9 @@ local function GetCharacter()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
 
-local function GetHumanoid()
+local function GetRoot()
     local char = GetCharacter()
-    return char and char:FindFirstChildOfClass("Humanoid")
+    return char and char:FindFirstChild("HumanoidRootPart")
 end
 
 --------------------------------------------------------------------------------
@@ -125,7 +123,42 @@ local function Notify(title, message)
 end
 
 --------------------------------------------------------------------------------
--- 2. FLOATING TOGGLE BUTTON (MOBILE)
+-- 2. WORKING AUTO ATTACK (TARGETS RUNNERS)
+--------------------------------------------------------------------------------
+task.spawn(function()
+    while true do
+        task.wait(0.2) -- Check interval
+        if FeatureStates["Auto Attack"] then
+            pcall(function()
+                local myRoot = GetRoot()
+                if not myRoot then return end
+
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Team and player.Team.Name:lower():find("runner") then
+                        local enemyChar = player.Character
+                        if enemyChar and enemyChar:FindFirstChild("HumanoidRootPart") then
+                            local enemyRoot = enemyChar.HumanoidRootPart
+                            local distance = (myRoot.Position - enemyRoot.Position).Magnitude
+                            
+                            -- Attack range threshold (e.g., within 8 studs)
+                            if distance <= 8 then
+                                -- Simulates a tool activation or standard game attack call
+                                local char = GetCharacter()
+                                local tool = char and char:FindFirstChildOfClass("Tool")
+                                if tool then
+                                    tool:Activate()
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+--------------------------------------------------------------------------------
+-- 3. FLOATING TOGGLE BUTTON (MOBILE)
 --------------------------------------------------------------------------------
 local OpenBtn = Instance.new("TextButton")
 OpenBtn.Size = UDim2.new(0, 80, 0, 32)
@@ -145,7 +178,7 @@ OpenStroke.Thickness = 2
 RegisterStroke(OpenStroke)
 
 --------------------------------------------------------------------------------
--- 3. KEY SYSTEM
+-- 4. KEY SYSTEM
 --------------------------------------------------------------------------------
 local KeyFrame = Instance.new("Frame")
 KeyFrame.Size = UDim2.new(0, 280, 0, 160)
@@ -193,7 +226,7 @@ VerifyBtn.Parent = KeyFrame
 Instance.new("UICorner", VerifyBtn).CornerRadius = UDim.new(0, 6)
 
 --------------------------------------------------------------------------------
--- 4. MAIN HUB UI FRAME
+-- 5. MAIN HUB UI FRAME
 --------------------------------------------------------------------------------
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 460, 0, 260)
@@ -343,7 +376,7 @@ CreateTabButton("Teams")
 CreateTabButton("Settings")
 
 --------------------------------------------------------------------------------
--- 5. TOGGLE CREATOR
+-- 6. TOGGLE CREATOR
 --------------------------------------------------------------------------------
 local function createToggle(parentPage, title, defaultState)
     FeatureStates[title] = defaultState
@@ -418,18 +451,17 @@ for themeName, color in pairs(Themes) do
 
     themeBtn.MouseButton1Click:Connect(function()
         ApplyTheme(color)
-        Notify("Theme", "Set to " .. themeName)
+        Notify("Theme", "Set to " + themeName)
     end)
 end
 
 --------------------------------------------------------------------------------
--- 6. VERIFICATION
+-- 7. VERIFICATION
 --------------------------------------------------------------------------------
 VerifyBtn.MouseButton1Click:Connect(function()
     if KeyInput.Text == CORRECT_KEY then
         VerifyBtn.Text = "SUCCESS!"
-        VerifyBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
-        task.wait(0.4)
+        VerifyBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)        task.wait(0.4)
         KeyFrame.Visible = false
         MainFrame.Visible = true
         Notify("Ken Hub", "Welcome!")
