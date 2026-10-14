@@ -5,6 +5,7 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -22,7 +23,33 @@ KenHubUI.ResetOnSpawn = false
 local CORRECT_KEY = "KEN-HUB-2026"
 local FeatureStates = {}
 local OriginalWalkSpeed = 16
-local CurrentTab = "Main"
+local ToggleKeybind = Enum.KeyCode.RightControl
+local ListeningForKeybind = false
+
+-- Theme Palettes
+local Themes = {
+    ["Neon Blue"] = Color3.fromRGB(0, 195, 255),
+    ["Dark Acrylic"] = Color3.fromRGB(150, 150, 150),
+    ["Amber Gold"] = Color3.fromRGB(255, 170, 0),
+    ["Sunset Pink"] = Color3.fromRGB(255, 85, 127),
+    ["Emerald Green"] = Color3.fromRGB(0, 230, 120)
+}
+local ActiveAccent = Themes["Neon Blue"]
+local DynamicStrokes = {}
+
+local function RegisterStroke(stroke)
+    table.insert(DynamicStrokes, stroke)
+    stroke.Color = ActiveAccent
+end
+
+local function ApplyTheme(color)
+    ActiveAccent = color
+    for _, stroke in ipairs(DynamicStrokes) do
+        if stroke and stroke.Parent then
+            stroke.Color = color
+        end
+    end
+end
 
 local function GetCharacter()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -33,129 +60,105 @@ local function GetHumanoid()
     return char and char:FindFirstChildOfClass("Humanoid")
 end
 
-local function GetRoot()
-    local char = GetCharacter()
-    return char and char:FindFirstChild("HumanoidRootPart")
+--------------------------------------------------------------------------------
+-- 1. CONFIG SAVING & LOADING (JSON System)
+--------------------------------------------------------------------------------
+local ConfigFileName = "KenHub_Config.json"
+
+local function SaveConfig()
+    if writefile then
+        local data = {
+            ThemeColor = {ActiveAccent.R, ActiveAccent.G, ActiveAccent.B},
+            Keybind = ToggleKeybind.Name,
+            Toggles = FeatureStates
+        }
+        pcall(function()
+            writefile(ConfigFileName, HttpService:JSONEncode(data))
+        end)
+    end
+end
+
+local function LoadConfig()
+    if readfile and isfile and isfile(ConfigFileName) then
+        pcall(function()
+            local raw = readfile(ConfigFileName)
+            local data = HttpService:JSONDecode(raw)
+            if data then
+                if data.ThemeColor then
+                    ApplyTheme(Color3.new(data.ThemeColor[1], data.ThemeColor[2], data.ThemeColor[3]))
+                end
+                if data.Keybind and Enum.KeyCode[data.Keybind] then
+                    ToggleKeybind = Enum.KeyCode[data.Keybind]
+                end
+            end
+        end)
+    end
 end
 
 --------------------------------------------------------------------------------
--- 1. GAME MECHANICS & HOOKS
+-- 2. NOTIFICATION SYSTEM
 --------------------------------------------------------------------------------
-local FeatureHooks = {
-    ["Speed Boost"] = function(state)
-        local hum = GetHumanoid()
-        if hum then
-            if state then
-                OriginalWalkSpeed = hum.WalkSpeed > 0 and hum.WalkSpeed or 16
-                hum.WalkSpeed = 32
-            else
-                hum.WalkSpeed = OriginalWalkSpeed
-            end
-        end
-    end,
+local NotifyContainer = Instance.new("Frame")
+NotifyContainer.Size = UDim2.new(0, 220, 1, -20)
+NotifyContainer.Position = UDim2.new(1, -230, 0, 10)
+NotifyContainer.BackgroundTransparency = 1
+NotifyContainer.Parent = KenHubUI
 
-    ["Auto Dodge"] = function(state)
-        task.spawn(function()
-            while FeatureStates["Auto Dodge"] do
-                task.wait(0.1)
-                pcall(function()
-                    local myRoot = GetRoot()
-                    local myChar = GetCharacter()
-                    if not myRoot or not myChar then return end
+local NotifyList = Instance.new("UIListLayout")
+NotifyList.SortOrder = Enum.SortOrder.LayoutOrder
+NotifyList.VerticalAlignment = Enum.VerticalAlignment.Bottom
+NotifyList.Padding = UDim.new(0, 8)
+NotifyList.Parent = NotifyContainer
 
-                    for _, player in pairs(Players:GetPlayers()) do
-                        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                            local enemyRoot = player.Character.HumanoidRootPart
-                            local dist = (myRoot.Position - enemyRoot.Position).Magnitude
+local function Notify(title, message)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 0, 45)
+    card.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
+    card.Parent = NotifyContainer
 
-                            if dist <= 15 then
-                                local tool = myChar:FindFirstChildOfClass("Tool")
-                                if tool and (tool.Name:lower():find("dodge") or tool.Name:lower():find("dash")) then
-                                    tool:Activate()
-                                end
-                                task.wait(0.8)
-                            end
-                        end
-                    end
-                end)
-            end
-        end)
-    end,
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+    local stroke = Instance.new("UIStroke", card)
+    stroke.Thickness = 1.5
+    RegisterStroke(stroke)
 
-    ["Auto Attack"] = function(state)
-        task.spawn(function()
-            while FeatureStates["Auto Attack"] do
-                task.wait(0.2)
-                pcall(function()
-                    local char = GetCharacter()
-                    local tool = char and char:FindFirstChildOfClass("Tool")
-                    if tool then
-                        tool:Activate()
-                    end
-                end)
-            end
-        end)
-    end,
+    local titleLbl = Instance.new("TextLabel")
+    titleLbl.Size = UDim2.new(1, -10, 0, 18)
+    titleLbl.Position = UDim2.new(0, 8, 0, 4)
+    titleLbl.BackgroundTransparency = 1
+    titleLbl.Text = title
+    titleLbl.TextColor3 = ActiveAccent
+    titleLbl.TextSize = 11
+    titleLbl.Font = Enum.Font.GothamBold
+    titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+    titleLbl.Parent = card
 
-    ["Auto Pick"] = function(state)
-        task.spawn(function()
-            while FeatureStates["Auto Pick"] do
-                task.wait(0.4)
-                pcall(function()
-                    local myRoot = GetRoot()
-                    if not myRoot then return end
-                    for _, obj in pairs(workspace:GetDescendants()) do
-                        if obj:IsA("ProximityPrompt") and obj.Enabled then
-                            local part = obj.Parent
-                            if part and part:IsA("BasePart") and (myRoot.Position - part.Position).Magnitude < 25 then
-                                fireproximityprompt(obj)
-                            end
-                        end
-                    end
-                end)
-            end
-        end)
-    end,
+    local msgLbl = Instance.new("TextLabel")
+    msgLbl.Size = UDim2.new(1, -10, 0, 18)
+    msgLbl.Position = UDim2.new(0, 8, 0, 22)
+    msgLbl.BackgroundTransparency = 1
+    msgLbl.Text = message
+    msgLbl.TextColor3 = Color3.fromRGB(200, 210, 220)
+    msgLbl.TextSize = 10
+    msgLbl.Font = Enum.Font.Gotham
+    msgLbl.TextXAlignment = Enum.TextXAlignment.Left
+    msgLbl.Parent = card
 
-    ["Player Lock On"] = function(state)
-        if state then
-            _G.KenLock = RunService.RenderStepped:Connect(function()
-                if not FeatureStates["Player Lock On"] then return end
-                local nearestPlayer, shortestDist = nil, math.huge
-                local myRoot = GetRoot()
-                
-                if myRoot then
-                    for _, player in pairs(Players:GetPlayers()) do
-                        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                            local dist = (player.Character.HumanoidRootPart.Position - myRoot.Position).Magnitude
-                            if dist < shortestDist then
-                                shortestDist = dist
-                                nearestPlayer = player
-                            end
-                        end
-                    end
-                    if nearestPlayer and nearestPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, nearestPlayer.Character.HumanoidRootPart.Position)
-                    end
-                end
-            end)
-        else
-            if _G.KenLock then
-                _G.KenLock:Disconnect()
-                _G.KenLock = nil
-            end
-        end
-    end
-}
+    task.delay(3, function()
+        TweenService:Create(card, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(titleLbl, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
+        TweenService:Create(msgLbl, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
+        task.wait(0.3)
+        card:Destroy()
+    end)
+end
 
 --------------------------------------------------------------------------------
--- 2. KEY SYSTEM UI
+-- 3. KEY SYSTEM UI
 --------------------------------------------------------------------------------
 local KeyFrame = Instance.new("Frame")
 KeyFrame.Size = UDim2.new(0, 320, 0, 180)
 KeyFrame.Position = UDim2.new(0.5, -160, 0.5, -90)
 KeyFrame.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
-KeyFrame.BorderSizePixel = 0
 KeyFrame.Active = true
 KeyFrame.Draggable = true
 KeyFrame.Parent = KenHubUI
@@ -163,7 +166,7 @@ KeyFrame.Parent = KenHubUI
 Instance.new("UICorner", KeyFrame).CornerRadius = UDim.new(0, 10)
 local KeyStroke = Instance.new("UIStroke", KeyFrame)
 KeyStroke.Thickness = 2
-KeyStroke.Color = Color3.fromRGB(0, 195, 255)
+RegisterStroke(KeyStroke)
 
 local KeyTitle = Instance.new("TextLabel")
 KeyTitle.Size = UDim2.new(1, 0, 0, 35)
@@ -198,7 +201,7 @@ VerifyBtn.Parent = KeyFrame
 Instance.new("UICorner", VerifyBtn).CornerRadius = UDim.new(0, 6)
 
 --------------------------------------------------------------------------------
--- 3. MAIN HUB UI FRAME & MULTI-TAB CONTROLS
+-- 4. MAIN HUB FRAME & NAVIGATION
 --------------------------------------------------------------------------------
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 580, 0, 340)
@@ -207,13 +210,13 @@ MainFrame.BackgroundTransparency = 1
 MainFrame.Visible = false
 MainFrame.Parent = KenHubUI
 
--- Floating Open/Restore Button
+-- Floating Restore Button
 local OpenBtn = Instance.new("TextButton")
 OpenBtn.Size = UDim2.new(0, 90, 0, 35)
 OpenBtn.Position = UDim2.new(0, 20, 0.5, -17)
 OpenBtn.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
 OpenBtn.Text = "KEN HUB"
-OpenBtn.TextColor3 = Color3.fromRGB(0, 195, 255)
+OpenBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 OpenBtn.TextSize = 11
 OpenBtn.Font = Enum.Font.GothamBold
 OpenBtn.Active = true
@@ -224,7 +227,7 @@ OpenBtn.Parent = KenHubUI
 Instance.new("UICorner", OpenBtn).CornerRadius = UDim.new(0, 8)
 local OpenStroke = Instance.new("UIStroke", OpenBtn)
 OpenStroke.Thickness = 2
-OpenStroke.Color = Color3.fromRGB(0, 195, 255)
+RegisterStroke(OpenStroke)
 
 -- Left Sidebar
 local LeftPanel = Instance.new("Frame")
@@ -236,20 +239,19 @@ LeftPanel.Parent = MainFrame
 Instance.new("UICorner", LeftPanel).CornerRadius = UDim.new(0, 10)
 local LeftStroke = Instance.new("UIStroke", LeftPanel)
 LeftStroke.Thickness = 2
-LeftStroke.Color = Color3.fromRGB(0, 195, 255)
+RegisterStroke(LeftStroke)
 
 local BrandText = Instance.new("TextLabel")
 BrandText.Size = UDim2.new(1, -20, 0, 30)
 BrandText.Position = UDim2.new(0, 15, 0, 10)
 BrandText.BackgroundTransparency = 1
 BrandText.Text = "KEN HUB"
-BrandText.TextColor3 = Color3.fromRGB(0, 195, 255)
+BrandText.TextColor3 = Color3.fromRGB(255, 255, 255)
 BrandText.TextSize = 14
 BrandText.Font = Enum.Font.GothamBold
 BrandText.TextXAlignment = Enum.TextXAlignment.Left
 BrandText.Parent = LeftPanel
 
--- Navigation Tabs Area
 local TabContainer = Instance.new("Frame")
 TabContainer.Size = UDim2.new(1, -20, 0, 120)
 TabContainer.Position = UDim2.new(0, 10, 0, 45)
@@ -261,7 +263,7 @@ TabList.SortOrder = Enum.SortOrder.LayoutOrder
 TabList.Padding = UDim.new(0, 6)
 TabList.Parent = TabContainer
 
--- Player Status Summary Box inside Sidebar Bottom
+-- Player Status Summary Box
 local PlayerStatusBox = Instance.new("Frame")
 PlayerStatusBox.Size = UDim2.new(1, -20, 0, 130)
 PlayerStatusBox.Position = UDim2.new(0, 10, 1, -140)
@@ -291,20 +293,9 @@ StatusHealth.Font = Enum.Font.Gotham
 StatusHealth.TextXAlignment = Enum.TextXAlignment.Left
 StatusHealth.Parent = PlayerStatusBox
 
-local StatusStamina = Instance.new("TextLabel")
-StatusStamina.Size = UDim2.new(1, -10, 0, 18)
-StatusStamina.Position = UDim2.new(0, 5, 0, 45)
-StatusStamina.BackgroundTransparency = 1
-StatusStamina.Text = "Stamina: 100%"
-StatusStamina.TextColor3 = Color3.fromRGB(0, 195, 255)
-StatusStamina.TextSize = 10
-StatusStamina.Font = Enum.Font.Gotham
-StatusStamina.TextXAlignment = Enum.TextXAlignment.Left
-StatusStamina.Parent = PlayerStatusBox
-
 local MetricsLabel = Instance.new("TextLabel")
 MetricsLabel.Size = UDim2.new(1, -10, 0, 35)
-MetricsLabel.Position = UDim2.new(0, 5, 0, 70)
+MetricsLabel.Position = UDim2.new(0, 5, 0, 50)
 MetricsLabel.BackgroundTransparency = 1
 MetricsLabel.Text = "FPS: 60\nPing: 0 ms"
 MetricsLabel.TextColor3 = Color3.fromRGB(180, 190, 200)
@@ -324,7 +315,7 @@ RightPanel.Parent = MainFrame
 Instance.new("UICorner", RightPanel).CornerRadius = UDim.new(0, 10)
 local RightStroke = Instance.new("UIStroke", RightPanel)
 RightStroke.Thickness = 2
-RightStroke.Color = Color3.fromRGB(0, 195, 255)
+RegisterStroke(RightStroke)
 
 -- Header Action Buttons (Minimize & Close)
 local HeaderButtons = Instance.new("Frame")
@@ -336,9 +327,13 @@ HeaderButtons.Parent = RightPanel
 local MinimizeBtn = Instance.new("TextButton")
 MinimizeBtn.Size = UDim2.new(0, 22, 0, 22)
 MinimizeBtn.Position = UDim2.new(0, 0, 0, 0)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(2
+    local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0, 22, 0, 22)
+MinimizeBtn.Position = UDim2.new(0, 0, 0, 0)
 MinimizeBtn.BackgroundColor3 = Color3.fromRGB(24, 28, 36)
 MinimizeBtn.Text = "-"
-MinimizeBtn.TextColor3 = Color3.fromRGB(0, 195, 255)
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 MinimizeBtn.TextSize = 14
 MinimizeBtn.Font = Enum.Font.GothamBold
 MinimizeBtn.Parent = HeaderButtons
@@ -369,16 +364,22 @@ CloseBtn.MouseButton1Click:Connect(function()
     KenHubUI:Destroy()
 end)
 
--- Toggle UI via RightControl Keybind
+-- Keybind Rebinding & Listener
 UserInputService.InputBegan:Connect(function(input, gpe)
-    if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
+    if ListeningForKeybind and not gpe and input.UserInputType == Enum.UserInputType.Keyboard then
+        ToggleKeybind = input.KeyCode
+        ListeningForKeybind = false
+        Notify("Keybind Updated", "Toggle Key set to: " .. input.KeyCode.Name)
+        SaveConfig()
+    elseif not gpe and input.KeyCode == ToggleKeybind then
         MainFrame.Visible = not MainFrame.Visible
         OpenBtn.Visible = not MainFrame.Visible
     end
 end)
 
--- Tab Content Frames
+-- Tab Controller
 local TabPages = {}
+local TabButtons = {}
 
 local function CreateTabPage(name)
     local page = Instance.new("ScrollingFrame")
@@ -401,11 +402,8 @@ end
 local MainTab = CreateTabPage("Main")
 local StatsTab = CreateTabPage("Stats")
 local SettingsTab = CreateTabPage("Settings")
+MainTab.Visible = true
 
-MainTab.Visible = true -- Default Active Tab
-
--- Sidebar Tab Buttons Creator
-local TabButtons = {}
 local function CreateTabButton(name)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 32)
@@ -431,72 +429,94 @@ CreateTabButton("Main")
 CreateTabButton("Stats")
 CreateTabButton("Settings")
 
--- Toggle Creator
-local function createToggle(parentPage, title, defaultState)
-    FeatureStates[title] = defaultState
+--------------------------------------------------------------------------------
+-- 5. SETTINGS CONTROLS (Theme Picker, Keybind Rebinder, Save Config)
+--------------------------------------------------------------------------------
+local RebindBtn = Instance.new("TextButton")
+RebindBtn.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
+RebindBtn.Text = "Rebind Key (Press)"
+RebindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RebindBtn.TextSize = 11
+RebindBtn.Font = Enum.Font.GothamBold
+RebindBtn.Parent = SettingsTab
+Instance.new("UICorner", RebindBtn).CornerRadius = UDim.new(0, 6)
 
-    local toggleCard = Instance.new("Frame")
-    toggleCard.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
-    toggleCard.Parent = parentPage
-    Instance.new("UICorner", toggleCard).CornerRadius = UDim.new(0, 6)
+RebindBtn.MouseButton1Click:Connect(function()
+    ListeningForKeybind = true
+    Notify("Rebinder", "Press any key to set your new toggle keybind...")
+end)
 
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, -50, 1, 0)
-    titleLabel.Position = UDim2.new(0, 10, 0, 0)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = title
-    titleLabel.TextColor3 = Color3.fromRGB(220, 230, 240)
-    titleLabel.TextSize = 11
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Parent = toggleCard
+local SaveBtn = Instance.new("TextButton")
+SaveBtn.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
+SaveBtn.Text = "Save Config"
+SaveBtn.TextColor3 = Color3.fromRGB(0, 200, 100)
+SaveBtn.TextSize = 11
+SaveBtn.Font = Enum.Font.GothamBold
+SaveBtn.Parent = SettingsTab
+Instance.new("UICorner", SaveBtn).CornerRadius = UDim.new(0, 6)
 
-    local switchBtn = Instance.new("TextButton")
-    switchBtn.Size = UDim2.new(0, 34, 0, 18)
-    switchBtn.Position = UDim2.new(1, -40, 0.5, -9)
-    switchBtn.BackgroundColor3 = defaultState and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(50, 55, 65)
-    switchBtn.Text = ""
-    switchBtn.Parent = toggleCard
-    Instance.new("UICorner", switchBtn).CornerRadius = UDim.new(1, 0)
+SaveBtn.MouseButton1Click:Connect(function()
+    SaveConfig()
+    Notify("Config System", "Settings saved successfully!")
+end)
 
-    local knob = Instance.new("Frame")
-    knob.Size = UDim2.new(0, 14, 0, 14)
-    knob.Position = defaultState and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    knob.Parent = switchBtn
-    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+for themeName, color in pairs(Themes) do
+    local themeBtn = Instance.new("TextButton")
+    themeBtn.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
+    themeBtn.Text = "Theme: " .. themeName
+    themeBtn.TextColor3 = color
+    themeBtn.TextSize = 11
+    themeBtn.Font = Enum.Font.GothamBold
+    themeBtn.Parent = SettingsTab
+    Instance.new("UICorner", themeBtn).CornerRadius = UDim.new(0, 6)
 
-    if defaultState and FeatureHooks[title] then
-        task.spawn(function() FeatureHooks[title](true) end)
-    end
-
-    switchBtn.MouseButton1Click:Connect(function()
-        FeatureStates[title] = not FeatureStates[title]
-        local isEnabled = FeatureStates[title]
-
-        if isEnabled then
-            TweenService:Create(switchBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(0, 200, 100)}):Play()
-            TweenService:Create(knob, TweenInfo.new(0.15), {Position = UDim2.new(1, -16, 0.5, -7)}):Play()
-        else
-            TweenService:Create(switchBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(50, 55, 65)}):Play()
-            TweenService:Create(knob, TweenInfo.new(0.15), {Position = UDim2.new(0, 2, 0.5, -7)}):Play()
-        end
-
-        if FeatureHooks[title] then
-            FeatureHooks[title](isEnabled)
-        end
+    themeBtn.MouseButton1Click:Connect(function()
+        ApplyTheme(color)
+        SaveConfig()
+        Notify("Theme Manager", "Switched accent to " .. themeName)
     end)
 end
 
--- Create Main Features
-createToggle(MainTab, "Auto Dodge", true)
-createToggle(MainTab, "Speed Boost", false)
-createToggle(MainTab, "Auto Attack", false)
-createToggle(MainTab, "Auto Pick", true)
-createToggle(MainTab, "Player Lock On", false)
+--------------------------------------------------------------------------------
+-- 6. STANDALONE OVERLAY WIDGET
+--------------------------------------------------------------------------------
+local StatsWidget = Instance.new("Frame")
+StatsWidget.Size = UDim2.new(0, 160, 0, 55)
+StatsWidget.Position = UDim2.new(0, 20, 0, 20)
+StatsWidget.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
+StatsWidget.Active = true
+StatsWidget.Draggable = true
+StatsWidget.Parent = KenHubUI
+
+Instance.new("UICorner", StatsWidget).CornerRadius = UDim.new(0, 8)
+local WidgetStroke = Instance.new("UIStroke", StatsWidget)
+WidgetStroke.Thickness = 1.5
+RegisterStroke(WidgetStroke)
+
+local WidgetTitle = Instance.new("TextLabel")
+WidgetTitle.Size = UDim2.new(1, -10, 0, 18)
+WidgetTitle.Position = UDim2.new(0, 8, 0, 4)
+WidgetTitle.BackgroundTransparency = 1
+WidgetTitle.Text = "STATS OVERLAY"
+WidgetTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+WidgetTitle.TextSize = 10
+WidgetTitle.Font = Enum.Font.GothamBold
+WidgetTitle.TextXAlignment = Enum.TextXAlignment.Left
+WidgetTitle.Parent = StatsWidget
+
+local WidgetMetrics = Instance.new("TextLabel")
+WidgetMetrics.Size = UDim2.new(1, -10, 0, 26)
+WidgetMetrics.Position = UDim2.new(0, 8, 0, 22)
+WidgetMetrics.BackgroundTransparency = 1
+WidgetMetrics.Text = "FPS: 60  |  Ping: 0 ms"
+WidgetMetrics.TextColor3 = Color3.fromRGB(180, 190, 200)
+WidgetMetrics.TextSize = 10
+WidgetMetrics.Font = Enum.Font.Gotham
+WidgetMetrics.TextXAlignment = Enum.TextXAlignment.Left
+WidgetMetrics.Parent = StatsWidget
 
 --------------------------------------------------------------------------------
--- 4. METRICS & STATUS UPDATER
+-- 7. PERFORMANCE TRACKER & REALTIME UPDATES
 --------------------------------------------------------------------------------
 local FrameCount = 0
 local LastTime = tick()
@@ -509,30 +529,24 @@ RunService.RenderStepped:Connect(function()
         local fps = math.floor(FrameCount / (CurrentTime - LastTime))
         local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
         
+        local statsStr = string.format("FPS: %d  |  Ping: %d ms", fps, ping)
         MetricsLabel.Text = string.format("FPS: %d\nPing: %d ms", fps, ping)
+        WidgetMetrics.Text = statsStr
+
         FrameCount = 0
         LastTime = CurrentTime
     end
 
-    -- Update Player Health & Stamina
     local hum = GetHumanoid()
     if hum then
         StatusHealth.Text = string.format("HP: %d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth))
     else
         StatusHealth.Text = "HP: N/A"
     end
-    
-    local char = LocalPlayer.Character
-    local staminaVal = char and (char:FindFirstChild("Stamina") or char:FindFirstChild("Energy"))
-    if staminaVal then
-        StatusStamina.Text = string.format("Stamina: %d", math.floor(staminaVal.Value))
-    else
-        StatusStamina.Text = "Stamina: 100%"
-    end
 end)
 
 --------------------------------------------------------------------------------
--- 5. VERIFICATION LOGIC
+-- 8. VERIFICATION & INIT
 --------------------------------------------------------------------------------
 VerifyBtn.MouseButton1Click:Connect(function()
     if KeyInput.Text == CORRECT_KEY then
@@ -541,11 +555,14 @@ VerifyBtn.MouseButton1Click:Connect(function()
         task.wait(0.5)
         KeyFrame.Visible = false
         MainFrame.Visible = true
+        LoadConfig()
+        Notify("Ken Hub", "Welcome! Current keybind: " .. ToggleKeybind.Name)
     else
         VerifyBtn.Text = "INVALID KEY"
         VerifyBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
         task.wait(1)
-            VerifyBtn.Text = "VERIFY KEY"
+        VerifyBtn.Text = "VERIFY KEY"
         VerifyBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 240)
     end
 end)
+    
