@@ -4,13 +4,14 @@ local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local PathfindingService = game:GetService("PathfindingService")
 local VirtualUser = game:GetService("VirtualUser")
 local Stats = game:GetService("Stats")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Safe Parent Target
+-- Safe Target Parent
 local TargetParent = PlayerGui
 pcall(function()
     if CoreGui then TargetParent = CoreGui end
@@ -34,7 +35,11 @@ local FeatureStates = {
     ["Speed Boost"] = false
 }
 
--- Theme Colors
+local OriginalWalkSpeed = 16
+local SpeedBoostValue = 28
+local CanDodge = true
+
+-- Theme Colors (Inferno / Molten Glass Theme)
 local MoltenOrange = Color3.fromRGB(255, 85, 0)
 local DarkCharcoal = Color3.fromRGB(15, 12, 14)
 local CardBG = Color3.fromRGB(24, 18, 20)
@@ -67,21 +72,28 @@ local function IsEnemy(plr)
 end
 
 --------------------------------------------------------------------------------
--- GAMEPLAY AUTOMATION LOOPS
+-- GAMEPLAY MECHANICS & LOOPS
 --------------------------------------------------------------------------------
 
--- 1. SPEED BOOST LOOP
+-- 1. SPEED BOOST (SAVE AND RESTORE SPEED)
 task.spawn(function()
     while true do
-        task.wait(0.2)
+        task.wait(0.1)
         pcall(function()
             local hum = GetHumanoid()
             if hum then
                 if FeatureStates["Speed Boost"] then
-                    hum.WalkSpeed = 28
+                    if hum.WalkSpeed ~= SpeedBoostValue then
+                        -- Cache original speed if not already boosted
+                        if hum.WalkSpeed ~= SpeedBoostValue then
+                            OriginalWalkSpeed = hum.WalkSpeed
+                        end
+                        hum.WalkSpeed = SpeedBoostValue
+                    end
                 else
-                    if hum.WalkSpeed == 28 then
-                        hum.WalkSpeed = 16
+                    -- Restore cached original speed
+                    if hum.WalkSpeed == SpeedBoostValue then
+                        hum.WalkSpeed = OriginalWalkSpeed
                     end
                 end
             end
@@ -89,10 +101,10 @@ task.spawn(function()
     end
 end)
 
--- 2. AUTO ATTACK LOOP
+-- 2. AUTO ATTACK (COMBAT SYSTEM ACTIVATION)
 task.spawn(function()
     while true do
-        task.wait(0.08)
+        task.wait(0.1)
         if FeatureStates["Auto Attack"] then
             pcall(function()
                 local myRoot = GetRoot()
@@ -104,19 +116,26 @@ task.spawn(function()
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
-                            if dist <= 14 then
-                                -- Active Tool Activation
-                                local tool = char:FindFirstChildOfClass("Tool")
+                            if dist <= 12 then
+                                -- Equip tool if in backpack
+                                local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+                                local tool = char:FindFirstChildOfClass("Tool") or (backpack and backpack:FindFirstChildOfClass("Tool"))
+                                
+                                if tool and tool.Parent ~= char then
+                                    tool.Parent = char
+                                end
+
+                                -- Activate equipped weapon
                                 if tool then
                                     tool:Activate()
                                 end
-                                
-                                -- Virtual User Click Simulation
+
+                                -- Virtual input click simulation
                                 VirtualUser:Button1Down(Vector2.new(0,0))
                                 task.wait(0.02)
                                 VirtualUser:Button1Up(Vector2.new(0,0))
 
-                                -- Fire Remote Events
+                                -- Fire combat remote events
                                 for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
                                     if obj:IsA("RemoteEvent") and (obj.Name:lower():find("catch") or obj.Name:lower():find("attack") or obj.Name:lower():find("hit") or obj.Name:lower():find("tag")) then
                                         obj:FireServer(plr)
@@ -132,25 +151,34 @@ task.spawn(function()
     end
 end)
 
--- 3. AUTO DODGE LOOP
+-- 3. AUTO DODGE (MOVEMENT DODGE WITH COOLDOWN)
 task.spawn(function()
     while true do
         task.wait(0.05)
-        if FeatureStates["Auto Dodge"] then
+        if FeatureStates["Auto Dodge"] and CanDodge then
             pcall(function()
                 local myRoot = GetRoot()
-                if not myRoot then return end
+                local hum = GetHumanoid()
+                if not myRoot or not hum then return end
 
                 for _, plr in pairs(Players:GetPlayers()) do
                     if IsEnemy(plr) then
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
-                            if dist <= 10 then
-                                local rightDir = myRoot.CFrame.RightVector
-                                local dodgeOffset = rightDir * (math.random() > 0.5 and 16 or -16)
-                                myRoot.CFrame = myRoot.CFrame + dodgeOffset
-                                task.wait(0.3)
+                            if dist <= 9 then
+                                CanDodge = false
+                                
+                                -- Dodge using movement controls
+                                local rightVector = myRoot.CFrame.RightVector
+                                local dodgeDir = (math.random() > 0.5 and rightVector or -rightVector)
+                                local targetPos = myRoot.Position + (dodgeDir * 18)
+                                
+                                hum:MoveTo(targetPos)
+                                
+                                -- Cooldown management
+                                task.wait(0.8)
+                                CanDodge = true
                             end
                         end
                     end
@@ -160,29 +188,44 @@ task.spawn(function()
     end
 end)
 
--- 4. AUTO RUN LOOP (HARD NAVIGATION)
+-- 4. AUTO RUN (PATHFINDING & MOVETO NAVIGATION)
 task.spawn(function()
     while true do
-        task.wait(0.05)
+        task.wait(0.2)
         if FeatureStates["Auto Run"] then
             pcall(function()
                 local hum = GetHumanoid()
                 local myRoot = GetRoot()
                 if not hum or not myRoot then return end
 
-                local finishPos = nil
+                -- Locate designated finish zone
+                local finishPart = nil
                 for _, obj in pairs(workspace:GetDescendants()) do
                     if obj:IsA("BasePart") and (obj.Name:lower():find("finish") or obj.Name:lower():find("escape") or obj.Name:lower():find("goal") or obj.Name:lower():find("end")) then
-                        finishPos = obj.Position
+                        finishPart = obj
                         break
                     end
                 end
 
-                if finishPos then
-                    hum:MoveTo(finishPos)
+                if finishPart then
+                    -- Compute Path via PathfindingService
+                    local path = PathfindingService:CreatePath({
+                        AgentRadius = 2,
+                        AgentHeight = 5,
+                        AgentCanJump = true
+                    })
+                    
+                    path:ComputeAsync(myRoot.Position, finishPart.Position)
+                    local waypoints = path:GetWaypoints()
+
+                    if path.Status == Enum.PathStatus.Success and #waypoints > 1 then
+                        hum:MoveTo(waypoints[2].Position)
+                    else
+                        hum:MoveTo(finishPart.Position)
+                    end
                 else
-                    -- Direct velocity direction push forward
-                    hum:MoveTo(myRoot.Position + (myRoot.CFrame.LookVector * 30))
+                    -- Fallback forward movement
+                    hum:MoveTo(myRoot.Position + (myRoot.CFrame.LookVector * 25))
                 end
             end)
         end
@@ -190,7 +233,7 @@ task.spawn(function()
 end)
 
 --------------------------------------------------------------------------------
--- 1. FLOATING TOGGLE BUTTON (MOBILE)
+-- MOBILE UI & PANELS
 --------------------------------------------------------------------------------
 local OpenBtn = Instance.new("TextButton")
 OpenBtn.Size = UDim2.new(0, 95, 0, 34)
@@ -209,9 +252,7 @@ local OpenStroke = Instance.new("UIStroke", OpenBtn)
 OpenStroke.Thickness = 2
 OpenStroke.Color = MoltenOrange
 
---------------------------------------------------------------------------------
--- 2. KEY SYSTEM WINDOW
---------------------------------------------------------------------------------
+-- Key System Frame
 local KeyFrame = Instance.new("Frame")
 KeyFrame.Size = UDim2.new(0, 300, 0, 175)
 KeyFrame.Position = UDim2.new(0.5, -150, 0.5, -87)
@@ -261,9 +302,7 @@ VerifyBtn.Font = Enum.Font.GothamBold
 VerifyBtn.Parent = KeyFrame
 Instance.new("UICorner", VerifyBtn).CornerRadius = UDim.new(0, 6)
 
---------------------------------------------------------------------------------
--- 3. MAIN HUB WINDOW
---------------------------------------------------------------------------------
+-- Main Hub Window
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 380, 0, 240)
 MainFrame.Position = UDim2.new(0.5, -190, 0.5, -120)
@@ -368,7 +407,7 @@ createToggle("Auto Run")
 createToggle("Speed Boost")
 
 --------------------------------------------------------------------------------
--- EVENT LISTENERS & CONNECTORS
+-- EVENT LISTENERS
 --------------------------------------------------------------------------------
 
 -- FPS & Ping Loop
