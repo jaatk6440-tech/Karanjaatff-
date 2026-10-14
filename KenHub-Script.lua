@@ -4,16 +4,17 @@ local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local Stats = game:GetService("Stats")
 
 local LocalPlayer = Players.LocalPlayer
 
 -- Prevent duplicate UI instances
-if CoreGui:FindFirstChild("KenHubCustomUI") then
-    CoreGui.KenHubCustomUI:Destroy()
+if CoreGui:FindFirstChild("KenHubUI") then
+    CoreGui.KenHubUI:Destroy()
 end
 
 local KenHubUI = Instance.new("ScreenGui")
-KenHubUI.Name = "KenHubCustomUI"
+KenHubUI.Name = "KenHubUI"
 KenHubUI.Parent = CoreGui
 KenHubUI.ResetOnSpawn = false
 
@@ -37,7 +38,7 @@ local function GetRoot()
 end
 
 --------------------------------------------------------------------------------
--- 1. FUNCTIONAL GAME HOOKS (Add your game mechanics here)
+-- 1. GAME MECHANICS (Huss Valley Mechanics)
 --------------------------------------------------------------------------------
 local FeatureHooks = {
     ["Speed Boost"] = function(state)
@@ -45,11 +46,44 @@ local FeatureHooks = {
         if hum then
             if state then
                 OriginalWalkSpeed = hum.WalkSpeed > 0 and hum.WalkSpeed or 16
-                hum.WalkSpeed = 30
+                hum.WalkSpeed = 32
             else
                 hum.WalkSpeed = OriginalWalkSpeed
             end
         end
+    end,
+
+    ["Auto Dodge"] = function(state)
+        task.spawn(function()
+            while FeatureStates["Auto Dodge"] do
+                task.wait(0.1)
+                pcall(function()
+                    local myRoot = GetRoot()
+                    local myChar = GetCharacter()
+                    if not myRoot or not myChar then return end
+
+                    -- Detect incoming chasers/catchers within 15 studs
+                    for _, player in pairs(Players:GetPlayers()) do
+                        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                            local enemyRoot = player.Character.HumanoidRootPart
+                            local dist = (myRoot.Position - enemyRoot.Position).Magnitude
+
+                            if dist <= 15 then
+                                local tool = myChar:FindFirstChildOfClass("Tool")
+                                if tool and (tool.Name:lower():find("dodge") or tool.Name:lower():find("dash")) then
+                                    tool:Activate()
+                                else
+                                    keypress(0x10) -- Shift Key
+                                    task.wait(0.05)
+                                    keyrelease(0x10)
+                                end
+                                task.wait(0.8)
+                            end
+                        end
+                    end
+                end)
+            end
+        end)
     end,
 
     ["Auto Attack"] = function(state)
@@ -77,7 +111,7 @@ local FeatureHooks = {
                     for _, obj in pairs(workspace:GetDescendants()) do
                         if obj:IsA("ProximityPrompt") and obj.Enabled then
                             local part = obj.Parent
-                            if part and part:IsA("BasePart") and (myRoot.Position - part.Position).Magnitude < 20 then
+                            if part and part:IsA("BasePart") and (myRoot.Position - part.Position).Magnitude < 25 then
                                 fireproximityprompt(obj)
                             end
                         end
@@ -89,7 +123,7 @@ local FeatureHooks = {
 
     ["Player Lock On"] = function(state)
         if state then
-            _G.CustomLock = RunService.RenderStepped:Connect(function()
+            _G.KenLock = RunService.RenderStepped:Connect(function()
                 if not FeatureStates["Player Lock On"] then return end
                 local nearestPlayer, shortestDist = nil, math.huge
                 local myRoot = GetRoot()
@@ -110,9 +144,9 @@ local FeatureHooks = {
                 end
             end)
         else
-            if _G.CustomLock then
-                _G.CustomLock:Disconnect()
-                _G.CustomLock = nil
+            if _G.KenLock then
+                _G.KenLock:Disconnect()
+                _G.KenLock = nil
             end
         end
     end
@@ -130,19 +164,15 @@ KeyFrame.Active = true
 KeyFrame.Draggable = true
 KeyFrame.Parent = KenHubUI
 
-local KeyCorner = Instance.new("UICorner")
-KeyCorner.CornerRadius = UDim.new(0, 10)
-KeyCorner.Parent = KeyFrame
-
-local KeyStroke = Instance.new("UIStroke")
+Instance.new("UICorner", KeyFrame).CornerRadius = UDim.new(0, 10)
+local KeyStroke = Instance.new("UIStroke", KeyFrame)
 KeyStroke.Thickness = 2
 KeyStroke.Color = Color3.fromRGB(0, 195, 255)
-KeyStroke.Parent = KeyFrame
 
 local KeyTitle = Instance.new("TextLabel")
 KeyTitle.Size = UDim2.new(1, 0, 0, 35)
 KeyTitle.BackgroundTransparency = 1
-KeyTitle.Text = "CUSTOM HUB - KEY SYSTEM"
+KeyTitle.Text = "KEN HUB - KEY SYSTEM"
 KeyTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 KeyTitle.TextSize = 13
 KeyTitle.Font = Enum.Font.GothamBold
@@ -152,7 +182,7 @@ local KeyInput = Instance.new("TextBox")
 KeyInput.Size = UDim2.new(0.85, 0, 0, 35)
 KeyInput.Position = UDim2.new(0.075, 0, 0.3, 0)
 KeyInput.BackgroundColor3 = Color3.fromRGB(10, 12, 16)
-KeyInput.PlaceholderText = "Enter Key..."
+KeyInput.PlaceholderText = "Enter Key (KEN-HUB-2026)..."
 KeyInput.Text = ""
 KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 KeyInput.TextSize = 13
@@ -164,7 +194,7 @@ local VerifyBtn = Instance.new("TextButton")
 VerifyBtn.Size = UDim2.new(0.85, 0, 0, 35)
 VerifyBtn.Position = UDim2.new(0.075, 0, 0.62, 0)
 VerifyBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 240)
-VerifyBtn.Text = "VERIFY"
+VerifyBtn.Text = "VERIFY KEY"
 VerifyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 VerifyBtn.TextSize = 13
 VerifyBtn.Font = Enum.Font.GothamBold
@@ -172,7 +202,7 @@ VerifyBtn.Parent = KeyFrame
 Instance.new("UICorner", VerifyBtn).CornerRadius = UDim.new(0, 6)
 
 --------------------------------------------------------------------------------
--- 3. MAIN UI FRAME (Hidden until key is verified)
+-- 3. MAIN HUB UI FRAME & MINIMIZE CONTROLS
 --------------------------------------------------------------------------------
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 580, 0, 330)
@@ -180,6 +210,25 @@ MainFrame.Position = UDim2.new(0.5, -290, 0.5, -165)
 MainFrame.BackgroundTransparency = 1
 MainFrame.Visible = false
 MainFrame.Parent = KenHubUI
+
+-- Floating Open/Restore Button (Visible when minimized)
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Size = UDim2.new(0, 90, 0, 35)
+OpenBtn.Position = UDim2.new(0, 20, 0.5, -17)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
+OpenBtn.Text = "KEN HUB"
+OpenBtn.TextColor3 = Color3.fromRGB(0, 195, 255)
+OpenBtn.TextSize = 11
+OpenBtn.Font = Enum.Font.GothamBold
+OpenBtn.Active = true
+OpenBtn.Draggable = true
+OpenBtn.Visible = false
+OpenBtn.Parent = KenHubUI
+
+Instance.new("UICorner", OpenBtn).CornerRadius = UDim.new(0, 8)
+local OpenStroke = Instance.new("UIStroke", OpenBtn)
+OpenStroke.Thickness = 2
+OpenStroke.Color = Color3.fromRGB(0, 195, 255)
 
 -- Left Sidebar
 local LeftPanel = Instance.new("Frame")
@@ -193,19 +242,60 @@ local LeftStroke = Instance.new("UIStroke", LeftPanel)
 LeftStroke.Thickness = 2
 LeftStroke.Color = Color3.fromRGB(0, 195, 255)
 
--- Sidebar Title
 local BrandText = Instance.new("TextLabel")
-BrandText.Size = UDim2.new(1, -20, 0, 40)
-BrandText.Position = UDim2.new(0, 15, 0, 15)
+BrandText.Size = UDim2.new(1, -20, 0, 30)
+BrandText.Position = UDim2.new(0, 15, 0, 10)
 BrandText.BackgroundTransparency = 1
-BrandText.Text = "CUSTOM HUB"
-BrandText.TextColor3 = Color3.fromRGB(255, 255, 255)
-BrandText.TextSize = 13
+BrandText.Text = "KEN HUB"
+BrandText.TextColor3 = Color3.fromRGB(0, 195, 255)
+BrandText.TextSize = 14
 BrandText.Font = Enum.Font.GothamBold
 BrandText.TextXAlignment = Enum.TextXAlignment.Left
 BrandText.Parent = LeftPanel
 
--- Right Content Panel
+-- Player Status Box inside Sidebar
+local PlayerStatusBox = Instance.new("Frame")
+PlayerStatusBox.Size = UDim2.new(1, -20, 0, 120)
+PlayerStatusBox.Position = UDim2.new(0, 10, 0, 45)
+PlayerStatusBox.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
+PlayerStatusBox.Parent = LeftPanel
+Instance.new("UICorner", PlayerStatusBox).CornerRadius = UDim.new(0, 8)
+
+local StatusName = Instance.new("TextLabel")
+StatusName.Size = UDim2.new(1, -10, 0, 20)
+StatusName.Position = UDim2.new(0, 5, 0, 5)
+StatusName.BackgroundTransparency = 1
+StatusName.Text = "User: " .. LocalPlayer.DisplayName
+StatusName.TextColor3 = Color3.fromRGB(255, 255, 255)
+StatusName.TextSize = 10
+StatusName.Font = Enum.Font.GothamBold
+StatusName.TextXAlignment = Enum.TextXAlignment.Left
+StatusName.Parent = PlayerStatusBox
+
+local StatusHealth = Instance.new("TextLabel")
+StatusHealth.Size = UDim2.new(1, -10, 0, 20)
+StatusHealth.Position = UDim2.new(0, 5, 0, 25)
+StatusHealth.BackgroundTransparency = 1
+StatusHealth.Text = "HP: 100 / 100"
+StatusHealth.TextColor3 = Color3.fromRGB(0, 220, 120)
+StatusHealth.TextSize = 10
+StatusHealth.Font = Enum.Font.Gotham
+StatusHealth.TextXAlignment = Enum.TextXAlignment.Left
+StatusHealth.Parent = PlayerStatusBox
+
+-- FPS & Ping Stats inside Sidebar
+local MetricsLabel = Instance.new("TextLabel")
+MetricsLabel.Size = UDim2.new(1, -10, 0, 40)
+MetricsLabel.Position = UDim2.new(0, 5, 0, 55)
+MetricsLabel.BackgroundTransparency = 1
+MetricsLabel.Text = "FPS: 60\nPing: 0 ms"
+MetricsLabel.TextColor3 = Color3.fromRGB(180, 190, 200)
+MetricsLabel.TextSize = 10
+MetricsLabel.Font = Enum.Font.Gotham
+MetricsLabel.TextXAlignment = Enum.TextXAlignment.Left
+MetricsLabel.Parent = PlayerStatusBox
+
+-- Right Panel Grid
 local RightPanel = Instance.new("Frame")
 RightPanel.Size = UDim2.new(0, 395, 1, 0)
 RightPanel.Position = UDim2.new(0, 180, 0, 0)
@@ -217,6 +307,50 @@ Instance.new("UICorner", RightPanel).CornerRadius = UDim.new(0, 10)
 local RightStroke = Instance.new("UIStroke", RightPanel)
 RightStroke.Thickness = 2
 RightStroke.Color = Color3.fromRGB(0, 195, 255)
+
+-- Header Action Buttons (Minimize & Close)
+local HeaderButtons = Instance.new("Frame")
+HeaderButtons.Size = UDim2.new(0, 50, 0, 25)
+HeaderButtons.Position = UDim2.new(1, -55, 0, 8)
+HeaderButtons.BackgroundTransparency = 1
+HeaderButtons.Parent = RightPanel
+
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0, 22, 0, 22)
+MinimizeBtn.Position = UDim2.new(0, 0, 0, 0)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(24, 28, 36)
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = Color3.fromRGB(0, 195, 255)
+MinimizeBtn.TextSize = 14
+MinimizeBtn.Font = Enum.Font.GothamBold
+MinimizeBtn.Parent = HeaderButtons
+Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 6)
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 22, 0, 22)
+CloseBtn.Position = UDim2.new(0, 26, 0, 0)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(24, 28, 36)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(220, 60, 60)
+CloseBtn.TextSize = 11
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = HeaderButtons
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+
+-- Minimize & Restore Event Listeners
+MinimizeBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    OpenBtn.Visible = true
+end)
+
+OpenBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    OpenBtn.Visible = false
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    KenHubUI:Destroy()
+end)
 
 local GridContainer = Instance.new("ScrollingFrame")
 GridContainer.Size = UDim2.new(1, -20, 1, -50)
@@ -230,7 +364,7 @@ UIGrid.CellSize = UDim2.new(0.485, 0, 0, 38)
 UIGrid.CellPadding = UDim2.new(0.03, 0, 0, 8)
 UIGrid.Parent = GridContainer
 
--- Function to dynamically build interactive toggle cards
+-- Toggle Creator Function
 local function createToggle(title, defaultState)
     FeatureStates[title] = defaultState
 
@@ -265,12 +399,10 @@ local function createToggle(title, defaultState)
     knob.Parent = switchBtn
     Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
 
-    -- Initial state activation
     if defaultState and FeatureHooks[title] then
         task.spawn(function() FeatureHooks[title](true) end)
     end
 
-    -- Click Event Handler
     switchBtn.MouseButton1Click:Connect(function()
         FeatureStates[title] = not FeatureStates[title]
         local isEnabled = FeatureStates[title]
@@ -289,14 +421,43 @@ local function createToggle(title, defaultState)
     end)
 end
 
--- Add Toggles to UI
+-- Create Hub Toggles
+createToggle("Auto Dodge", true)
 createToggle("Speed Boost", false)
 createToggle("Auto Attack", false)
 createToggle("Auto Pick", true)
 createToggle("Player Lock On", false)
 
 --------------------------------------------------------------------------------
--- 4. VERIFICATION LOGIC
+-- 4. REAL-TIME METRICS & PLAYER STATUS UPDATER
+--------------------------------------------------------------------------------
+local FrameCount = 0
+local LastTime = tick()
+
+RunService.RenderStepped:Connect(function()
+    FrameCount = FrameCount + 1
+    local CurrentTime = tick()
+    
+    if CurrentTime - LastTime >= 1 then
+        local fps = math.floor(FrameCount / (CurrentTime - LastTime))
+        local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+        
+        MetricsLabel.Text = string.format("FPS: %d\nPing: %d ms", fps, ping)
+        FrameCount = 0
+        LastTime = CurrentTime
+    end
+
+    -- Update Health
+    local hum = GetHumanoid()
+    if hum then
+        StatusHealth.Text = string.format("HP: %d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth))
+    else
+        StatusHealth.Text = "HP: N/A"
+    end
+end)
+
+--------------------------------------------------------------------------------
+-- 5. VERIFICATION LOGIC
 --------------------------------------------------------------------------------
 VerifyBtn.MouseButton1Click:Connect(function()
     if KeyInput.Text == CORRECT_KEY then
@@ -309,7 +470,7 @@ VerifyBtn.MouseButton1Click:Connect(function()
         VerifyBtn.Text = "INVALID KEY"
         VerifyBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
         task.wait(1)
-        VerifyBtn.Text = "VERIFY"
+        VerifyBtn.Text = "VERIFY KEY"
         VerifyBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 240)
     end
 end)
