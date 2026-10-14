@@ -8,15 +8,24 @@ local Stats = game:GetService("Stats")
 local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Safe Parent Target (Fallback to PlayerGui if CoreGui errors)
+local SuccessContainer, TargetParent = pcall(function()
+    return CoreGui
+end)
+if not SuccessContainer or not TargetParent then
+    TargetParent = PlayerGui
+end
 
 -- Prevent duplicate UI instances
-if CoreGui:FindFirstChild("KenHubUI") then
-    CoreGui.KenHubUI:Destroy()
+if TargetParent:FindFirstChild("KenHubUI") then
+    TargetParent.KenHubUI:Destroy()
 end
 
 local KenHubUI = Instance.new("ScreenGui")
 KenHubUI.Name = "KenHubUI"
-KenHubUI.Parent = CoreGui
+KenHubUI.Parent = TargetParent
 KenHubUI.ResetOnSpawn = false
 
 -- Configuration & States
@@ -61,26 +70,26 @@ local function GetHumanoid()
 end
 
 --------------------------------------------------------------------------------
--- 1. CONFIG SAVING & LOADING (JSON System)
+-- 1. SAFE CONFIG LOADING / SAVING
 --------------------------------------------------------------------------------
 local ConfigFileName = "KenHub_Config.json"
 
 local function SaveConfig()
-    if writefile then
-        local data = {
-            ThemeColor = {ActiveAccent.R, ActiveAccent.G, ActiveAccent.B},
-            Keybind = ToggleKeybind.Name,
-            Toggles = FeatureStates
-        }
-        pcall(function()
+    pcall(function()
+        if writefile then
+            local data = {
+                ThemeColor = {ActiveAccent.R, ActiveAccent.G, ActiveAccent.B},
+                Keybind = ToggleKeybind.Name,
+                Toggles = FeatureStates
+            }
             writefile(ConfigFileName, HttpService:JSONEncode(data))
-        end)
-    end
+        end
+    end)
 end
 
 local function LoadConfig()
-    if readfile and isfile and isfile(ConfigFileName) then
-        pcall(function()
+    pcall(function()
+        if readfile and isfile and isfile(ConfigFileName) then
             local raw = readfile(ConfigFileName)
             local data = HttpService:JSONDecode(raw)
             if data then
@@ -91,8 +100,8 @@ local function LoadConfig()
                     ToggleKeybind = Enum.KeyCode[data.Keybind]
                 end
             end
-        end)
-    end
+        end
+    end)
 end
 
 --------------------------------------------------------------------------------
@@ -144,11 +153,13 @@ local function Notify(title, message)
     msgLbl.Parent = card
 
     task.delay(3, function()
-        TweenService:Create(card, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
-        TweenService:Create(titleLbl, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
-        TweenService:Create(msgLbl, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
-        task.wait(0.3)
-        card:Destroy()
+        pcall(function()
+            TweenService:Create(card, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
+            TweenService:Create(titleLbl, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
+            TweenService:Create(msgLbl, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
+            task.wait(0.3)
+            card:Destroy()
+        end)
     end)
 end
 
@@ -210,7 +221,6 @@ MainFrame.BackgroundTransparency = 1
 MainFrame.Visible = false
 MainFrame.Parent = KenHubUI
 
--- Floating Restore Button
 local OpenBtn = Instance.new("TextButton")
 OpenBtn.Size = UDim2.new(0, 90, 0, 35)
 OpenBtn.Position = UDim2.new(0, 20, 0.5, -17)
@@ -229,7 +239,6 @@ local OpenStroke = Instance.new("UIStroke", OpenBtn)
 OpenStroke.Thickness = 2
 RegisterStroke(OpenStroke)
 
--- Left Sidebar
 local LeftPanel = Instance.new("Frame")
 LeftPanel.Size = UDim2.new(0, 160, 1, 0)
 LeftPanel.BackgroundColor3 = Color3.fromRGB(12, 14, 18)
@@ -263,7 +272,6 @@ TabList.SortOrder = Enum.SortOrder.LayoutOrder
 TabList.Padding = UDim.new(0, 6)
 TabList.Parent = TabContainer
 
--- Player Status Summary Box
 local PlayerStatusBox = Instance.new("Frame")
 PlayerStatusBox.Size = UDim2.new(1, -20, 0, 130)
 PlayerStatusBox.Position = UDim2.new(0, 10, 1, -140)
@@ -304,7 +312,6 @@ MetricsLabel.Font = Enum.Font.Gotham
 MetricsLabel.TextXAlignment = Enum.TextXAlignment.Left
 MetricsLabel.Parent = PlayerStatusBox
 
--- Right Panel
 local RightPanel = Instance.new("Frame")
 RightPanel.Size = UDim2.new(0, 405, 1, 0)
 RightPanel.Position = UDim2.new(0, 170, 0, 0)
@@ -317,7 +324,6 @@ local RightStroke = Instance.new("UIStroke", RightPanel)
 RightStroke.Thickness = 2
 RegisterStroke(RightStroke)
 
--- Header Action Buttons (Minimize & Close)
 local HeaderButtons = Instance.new("Frame")
 HeaderButtons.Size = UDim2.new(0, 50, 0, 25)
 HeaderButtons.Position = UDim2.new(1, -55, 0, 8)
@@ -325,10 +331,6 @@ HeaderButtons.BackgroundTransparency = 1
 HeaderButtons.Parent = RightPanel
 
 local MinimizeBtn = Instance.new("TextButton")
-MinimizeBtn.Size = UDim2.new(0, 22, 0, 22)
-MinimizeBtn.Position = UDim2.new(0, 0, 0, 0)
-MinimizeBtn.BackgroundColor3 = Color3.fromRGB(2
-    local MinimizeBtn = Instance.new("TextButton")
 MinimizeBtn.Size = UDim2.new(0, 22, 0, 22)
 MinimizeBtn.Position = UDim2.new(0, 0, 0, 0)
 MinimizeBtn.BackgroundColor3 = Color3.fromRGB(24, 28, 36)
@@ -364,7 +366,6 @@ CloseBtn.MouseButton1Click:Connect(function()
     KenHubUI:Destroy()
 end)
 
--- Keybind Rebinding & Listener
 UserInputService.InputBegan:Connect(function(input, gpe)
     if ListeningForKeybind and not gpe and input.UserInputType == Enum.UserInputType.Keyboard then
         ToggleKeybind = input.KeyCode
@@ -377,7 +378,6 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- Tab Controller
 local TabPages = {}
 local TabButtons = {}
 
@@ -429,9 +429,7 @@ CreateTabButton("Main")
 CreateTabButton("Stats")
 CreateTabButton("Settings")
 
---------------------------------------------------------------------------------
--- 5. SETTINGS CONTROLS (Theme Picker, Keybind Rebinder, Save Config)
---------------------------------------------------------------------------------
+-- Settings Panel Controls
 local RebindBtn = Instance.new("TextButton")
 RebindBtn.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
 RebindBtn.Text = "Rebind Key (Press)"
@@ -477,9 +475,7 @@ for themeName, color in pairs(Themes) do
     end)
 end
 
---------------------------------------------------------------------------------
--- 6. STANDALONE OVERLAY WIDGET
---------------------------------------------------------------------------------
+-- Overlay Widget
 local StatsWidget = Instance.new("Frame")
 StatsWidget.Size = UDim2.new(0, 160, 0, 55)
 StatsWidget.Position = UDim2.new(0, 20, 0, 20)
@@ -515,9 +511,7 @@ WidgetMetrics.Font = Enum.Font.Gotham
 WidgetMetrics.TextXAlignment = Enum.TextXAlignment.Left
 WidgetMetrics.Parent = StatsWidget
 
---------------------------------------------------------------------------------
--- 7. PERFORMANCE TRACKER & REALTIME UPDATES
---------------------------------------------------------------------------------
+-- Render Loop Tracker
 local FrameCount = 0
 local LastTime = tick()
 
@@ -527,7 +521,10 @@ RunService.RenderStepped:Connect(function()
     
     if CurrentTime - LastTime >= 1 then
         local fps = math.floor(FrameCount / (CurrentTime - LastTime))
-        local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+        local ping = 0
+        pcall(function()
+            ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+        end)
         
         local statsStr = string.format("FPS: %d  |  Ping: %d ms", fps, ping)
         MetricsLabel.Text = string.format("FPS: %d\nPing: %d ms", fps, ping)
@@ -545,9 +542,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
---------------------------------------------------------------------------------
--- 8. VERIFICATION & INIT
---------------------------------------------------------------------------------
+-- Verification
 VerifyBtn.MouseButton1Click:Connect(function()
     if KeyInput.Text == CORRECT_KEY then
         VerifyBtn.Text = "SUCCESS!"
@@ -565,4 +560,3 @@ VerifyBtn.MouseButton1Click:Connect(function()
         VerifyBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 240)
     end
 end)
-    
