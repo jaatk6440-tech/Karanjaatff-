@@ -6,6 +6,8 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
 local HttpService = game:GetService("HttpService")
+local VirtualUser = game:GetService("VirtualUser")
+local PathfindingService = game:GetService("PathfindingService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -56,6 +58,11 @@ end
 
 local function GetCharacter()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+end
+
+local function GetHumanoid()
+    local char = GetCharacter()
+    return char and char:FindFirstChildOfClass("Humanoid")
 end
 
 local function GetRoot()
@@ -123,32 +130,98 @@ local function Notify(title, message)
 end
 
 --------------------------------------------------------------------------------
--- 2. WORKING AUTO ATTACK (TARGETS RUNNERS)
+-- 2. AUTOMATED GAMEPLAY LOOPS (ATTACK, DODGE, AUTO-RUN)
 --------------------------------------------------------------------------------
+
+-- AUTO ATTACK
 task.spawn(function()
     while true do
-        task.wait(0.2) -- Check interval
+        task.wait(0.15)
         if FeatureStates["Auto Attack"] then
             pcall(function()
                 local myRoot = GetRoot()
                 if not myRoot then return end
 
                 for _, player in pairs(Players:GetPlayers()) do
-                    if player ~= LocalPlayer and player.Team and player.Team.Name:lower():find("runner") then
+                    if player ~= LocalPlayer then
                         local enemyChar = player.Character
                         if enemyChar and enemyChar:FindFirstChild("HumanoidRootPart") then
                             local enemyRoot = enemyChar.HumanoidRootPart
                             local distance = (myRoot.Position - enemyRoot.Position).Magnitude
                             
-                            -- Attack range threshold (e.g., within 8 studs)
-                            if distance <= 8 then
-                                -- Simulates a tool activation or standard game attack call
+                            if distance <= 12 then
                                 local char = GetCharacter()
                                 local tool = char and char:FindFirstChildOfClass("Tool")
                                 if tool then
                                     tool:Activate()
+                                    VirtualUser:Button1Down(Vector2.new(0,0))
+                                    task.wait(0.05)
+                                    VirtualUser:Button1Up(Vector2.new(0,0))
                                 end
                             end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- AUTO DODGE (Evades incoming attack distance instantly)
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if FeatureStates["Auto Dodge"] then
+            pcall(function()
+                local myRoot = GetRoot()
+                if not myRoot then return end
+
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Team and player.Team.Name:lower():find("catcher") then
+                        local enemyChar = player.Character
+                        if enemyChar and enemyChar:FindFirstChild("HumanoidRootPart") then
+                            local enemyRoot = enemyChar.HumanoidRootPart
+                            local distance = (myRoot.Position - enemyRoot.Position).Magnitude
+
+                            -- If a catcher is within strike distance (6 studs), dodge backward/sideways
+                            if distance <= 6.5 then
+                                local dodgeVector = (myRoot.Position - enemyRoot.Position).Unit * 15
+                                myRoot.CFrame = myRoot.CFrame + Vector3.new(dodgeVector.X, 0, dodgeVector.Z)
+                                Notify("Auto Dodge", "Evaded incoming attack!")
+                                task.wait(0.8) -- Dodge Cooldown
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- AUTO RUN TO FINISH LINE
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+        if FeatureStates["Auto Run"] then
+            pcall(function()
+                local hum = GetHumanoid()
+                local myRoot = GetRoot()
+                if not hum or not myRoot then return end
+
+                -- Find Finish / Escape / Goal Part in Workspace
+                local finishPart = workspace:FindFirstChild("Finish") 
+                    or workspace:FindFirstChild("FinishLine") 
+                    or workspace:FindFirstChild("EscapeZone")
+                    or workspace:FindFirstChild("Goal")
+
+                if finishPart then
+                    hum:MoveTo(finishPart.Position)
+                else
+                    -- Fallback: Look for parts tagged or named "Exit" or "End"
+                    for _, obj in pairs(workspace:GetDescendants()) do
+                        if obj:IsA("BasePart") and (obj.Name:lower():find("finish") or obj.Name:lower():find("escape")) then
+                            hum:MoveTo(obj.Position)
+                            break
                         end
                     end
                 end
@@ -429,10 +502,10 @@ local function createToggle(parentPage, title, defaultState)
 end
 
 -- Toggles
-createToggle(MainTab, "Auto Dodge", true)
-createToggle(MainTab, "Speed Boost", false)
+createToggle(MainTab, "Auto Dodge", false)
+createToggle(MainTab, "Auto Run", false)
 createToggle(MainTab, "Auto Attack", false)
-createToggle(MainTab, "Auto Pick", true)
+createToggle(MainTab, "Speed Boost", false)
 
 createToggle(TeamsTab, "Highlight Runners", false)
 createToggle(TeamsTab, "Highlight Catchers", false)
@@ -451,7 +524,7 @@ for themeName, color in pairs(Themes) do
 
     themeBtn.MouseButton1Click:Connect(function()
         ApplyTheme(color)
-        Notify("Theme", "Set to " + themeName)
+        Notify("Theme", "Set to " .. themeName)
     end)
 end
 
@@ -461,7 +534,8 @@ end
 VerifyBtn.MouseButton1Click:Connect(function()
     if KeyInput.Text == CORRECT_KEY then
         VerifyBtn.Text = "SUCCESS!"
-        VerifyBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)        task.wait(0.4)
+        VerifyBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+        task.wait(0.4)
         KeyFrame.Visible = false
         MainFrame.Visible = true
         Notify("Ken Hub", "Welcome!")
