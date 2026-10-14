@@ -22,6 +22,7 @@ KenHubUI.ResetOnSpawn = false
 local CORRECT_KEY = "KEN-HUB-2026"
 local FeatureStates = {}
 local OriginalWalkSpeed = 16
+local CurrentTab = "Main"
 
 local function GetCharacter()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -38,7 +39,7 @@ local function GetRoot()
 end
 
 --------------------------------------------------------------------------------
--- 1. GAME MECHANICS (Huss Valley Mechanics)
+-- 1. GAME MECHANICS & HOOKS
 --------------------------------------------------------------------------------
 local FeatureHooks = {
     ["Speed Boost"] = function(state)
@@ -62,7 +63,6 @@ local FeatureHooks = {
                     local myChar = GetCharacter()
                     if not myRoot or not myChar then return end
 
-                    -- Detect incoming chasers/catchers within 15 studs
                     for _, player in pairs(Players:GetPlayers()) do
                         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                             local enemyRoot = player.Character.HumanoidRootPart
@@ -72,10 +72,6 @@ local FeatureHooks = {
                                 local tool = myChar:FindFirstChildOfClass("Tool")
                                 if tool and (tool.Name:lower():find("dodge") or tool.Name:lower():find("dash")) then
                                     tool:Activate()
-                                else
-                                    keypress(0x10) -- Shift Key
-                                    task.wait(0.05)
-                                    keyrelease(0x10)
                                 end
                                 task.wait(0.8)
                             end
@@ -202,16 +198,16 @@ VerifyBtn.Parent = KeyFrame
 Instance.new("UICorner", VerifyBtn).CornerRadius = UDim.new(0, 6)
 
 --------------------------------------------------------------------------------
--- 3. MAIN HUB UI FRAME & MINIMIZE CONTROLS
+-- 3. MAIN HUB UI FRAME & MULTI-TAB CONTROLS
 --------------------------------------------------------------------------------
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 580, 0, 330)
-MainFrame.Position = UDim2.new(0.5, -290, 0.5, -165)
+MainFrame.Size = UDim2.new(0, 580, 0, 340)
+MainFrame.Position = UDim2.new(0.5, -290, 0.5, -170)
 MainFrame.BackgroundTransparency = 1
 MainFrame.Visible = false
 MainFrame.Parent = KenHubUI
 
--- Floating Open/Restore Button (Visible when minimized)
+-- Floating Open/Restore Button
 local OpenBtn = Instance.new("TextButton")
 OpenBtn.Size = UDim2.new(0, 90, 0, 35)
 OpenBtn.Position = UDim2.new(0, 20, 0.5, -17)
@@ -232,7 +228,7 @@ OpenStroke.Color = Color3.fromRGB(0, 195, 255)
 
 -- Left Sidebar
 local LeftPanel = Instance.new("Frame")
-LeftPanel.Size = UDim2.new(0, 170, 1, 0)
+LeftPanel.Size = UDim2.new(0, 160, 1, 0)
 LeftPanel.BackgroundColor3 = Color3.fromRGB(12, 14, 18)
 LeftPanel.Active = true
 LeftPanel.Draggable = true
@@ -253,16 +249,28 @@ BrandText.Font = Enum.Font.GothamBold
 BrandText.TextXAlignment = Enum.TextXAlignment.Left
 BrandText.Parent = LeftPanel
 
--- Player Status Box inside Sidebar
+-- Navigation Tabs Area
+local TabContainer = Instance.new("Frame")
+TabContainer.Size = UDim2.new(1, -20, 0, 120)
+TabContainer.Position = UDim2.new(0, 10, 0, 45)
+TabContainer.BackgroundTransparency = 1
+TabContainer.Parent = LeftPanel
+
+local TabList = Instance.new("UIListLayout")
+TabList.SortOrder = Enum.SortOrder.LayoutOrder
+TabList.Padding = UDim.new(0, 6)
+TabList.Parent = TabContainer
+
+-- Player Status Summary Box inside Sidebar Bottom
 local PlayerStatusBox = Instance.new("Frame")
-PlayerStatusBox.Size = UDim2.new(1, -20, 0, 120)
-PlayerStatusBox.Position = UDim2.new(0, 10, 0, 45)
+PlayerStatusBox.Size = UDim2.new(1, -20, 0, 130)
+PlayerStatusBox.Position = UDim2.new(0, 10, 1, -140)
 PlayerStatusBox.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
 PlayerStatusBox.Parent = LeftPanel
 Instance.new("UICorner", PlayerStatusBox).CornerRadius = UDim.new(0, 8)
 
 local StatusName = Instance.new("TextLabel")
-StatusName.Size = UDim2.new(1, -10, 0, 20)
+StatusName.Size = UDim2.new(1, -10, 0, 18)
 StatusName.Position = UDim2.new(0, 5, 0, 5)
 StatusName.BackgroundTransparency = 1
 StatusName.Text = "User: " .. LocalPlayer.DisplayName
@@ -273,7 +281,7 @@ StatusName.TextXAlignment = Enum.TextXAlignment.Left
 StatusName.Parent = PlayerStatusBox
 
 local StatusHealth = Instance.new("TextLabel")
-StatusHealth.Size = UDim2.new(1, -10, 0, 20)
+StatusHealth.Size = UDim2.new(1, -10, 0, 18)
 StatusHealth.Position = UDim2.new(0, 5, 0, 25)
 StatusHealth.BackgroundTransparency = 1
 StatusHealth.Text = "HP: 100 / 100"
@@ -283,10 +291,20 @@ StatusHealth.Font = Enum.Font.Gotham
 StatusHealth.TextXAlignment = Enum.TextXAlignment.Left
 StatusHealth.Parent = PlayerStatusBox
 
--- FPS & Ping Stats inside Sidebar
+local StatusStamina = Instance.new("TextLabel")
+StatusStamina.Size = UDim2.new(1, -10, 0, 18)
+StatusStamina.Position = UDim2.new(0, 5, 0, 45)
+StatusStamina.BackgroundTransparency = 1
+StatusStamina.Text = "Stamina: 100%"
+StatusStamina.TextColor3 = Color3.fromRGB(0, 195, 255)
+StatusStamina.TextSize = 10
+StatusStamina.Font = Enum.Font.Gotham
+StatusStamina.TextXAlignment = Enum.TextXAlignment.Left
+StatusStamina.Parent = PlayerStatusBox
+
 local MetricsLabel = Instance.new("TextLabel")
-MetricsLabel.Size = UDim2.new(1, -10, 0, 40)
-MetricsLabel.Position = UDim2.new(0, 5, 0, 55)
+MetricsLabel.Size = UDim2.new(1, -10, 0, 35)
+MetricsLabel.Position = UDim2.new(0, 5, 0, 70)
 MetricsLabel.BackgroundTransparency = 1
 MetricsLabel.Text = "FPS: 60\nPing: 0 ms"
 MetricsLabel.TextColor3 = Color3.fromRGB(180, 190, 200)
@@ -295,10 +313,10 @@ MetricsLabel.Font = Enum.Font.Gotham
 MetricsLabel.TextXAlignment = Enum.TextXAlignment.Left
 MetricsLabel.Parent = PlayerStatusBox
 
--- Right Panel Grid
+-- Right Panel
 local RightPanel = Instance.new("Frame")
-RightPanel.Size = UDim2.new(0, 395, 1, 0)
-RightPanel.Position = UDim2.new(0, 180, 0, 0)
+RightPanel.Size = UDim2.new(0, 405, 1, 0)
+RightPanel.Position = UDim2.new(0, 170, 0, 0)
 RightPanel.BackgroundColor3 = Color3.fromRGB(12, 14, 18)
 RightPanel.Active = true
 RightPanel.Draggable = true
@@ -337,7 +355,6 @@ CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.Parent = HeaderButtons
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
 
--- Minimize & Restore Event Listeners
 MinimizeBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
     OpenBtn.Visible = true
@@ -352,25 +369,75 @@ CloseBtn.MouseButton1Click:Connect(function()
     KenHubUI:Destroy()
 end)
 
-local GridContainer = Instance.new("ScrollingFrame")
-GridContainer.Size = UDim2.new(1, -20, 1, -50)
-GridContainer.Position = UDim2.new(0, 10, 0, 40)
-GridContainer.BackgroundTransparency = 1
-GridContainer.ScrollBarThickness = 0
-GridContainer.Parent = RightPanel
+-- Toggle UI via RightControl Keybind
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
+        MainFrame.Visible = not MainFrame.Visible
+        OpenBtn.Visible = not MainFrame.Visible
+    end
+end)
 
-local UIGrid = Instance.new("UIGridLayout")
-UIGrid.CellSize = UDim2.new(0.485, 0, 0, 38)
-UIGrid.CellPadding = UDim2.new(0.03, 0, 0, 8)
-UIGrid.Parent = GridContainer
+-- Tab Content Frames
+local TabPages = {}
 
--- Toggle Creator Function
-local function createToggle(title, defaultState)
+local function CreateTabPage(name)
+    local page = Instance.new("ScrollingFrame")
+    page.Size = UDim2.new(1, -20, 1, -50)
+    page.Position = UDim2.new(0, 10, 0, 40)
+    page.BackgroundTransparency = 1
+    page.ScrollBarThickness = 0
+    page.Visible = false
+    page.Parent = RightPanel
+
+    local grid = Instance.new("UIGridLayout")
+    grid.CellSize = UDim2.new(0.485, 0, 0, 38)
+    grid.CellPadding = UDim2.new(0.03, 0, 0, 8)
+    grid.Parent = page
+
+    TabPages[name] = page
+    return page
+end
+
+local MainTab = CreateTabPage("Main")
+local StatsTab = CreateTabPage("Stats")
+local SettingsTab = CreateTabPage("Settings")
+
+MainTab.Visible = true -- Default Active Tab
+
+-- Sidebar Tab Buttons Creator
+local TabButtons = {}
+local function CreateTabButton(name)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 32)
+    btn.BackgroundColor3 = (name == "Main") and Color3.fromRGB(0, 180, 240) or Color3.fromRGB(18, 22, 28)
+    btn.Text = name
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 11
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = TabContainer
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    TabButtons[name] = btn
+
+    btn.MouseButton1Click:Connect(function()
+        for tabName, page in pairs(TabPages) do
+            page.Visible = (tabName == name)
+            TabButtons[tabName].BackgroundColor3 = (tabName == name) and Color3.fromRGB(0, 180, 240) or Color3.fromRGB(18, 22, 28)
+        end
+    end)
+end
+
+CreateTabButton("Main")
+CreateTabButton("Stats")
+CreateTabButton("Settings")
+
+-- Toggle Creator
+local function createToggle(parentPage, title, defaultState)
     FeatureStates[title] = defaultState
 
     local toggleCard = Instance.new("Frame")
     toggleCard.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
-    toggleCard.Parent = GridContainer
+    toggleCard.Parent = parentPage
     Instance.new("UICorner", toggleCard).CornerRadius = UDim.new(0, 6)
 
     local titleLabel = Instance.new("TextLabel")
@@ -421,15 +488,15 @@ local function createToggle(title, defaultState)
     end)
 end
 
--- Create Hub Toggles
-createToggle("Auto Dodge", true)
-createToggle("Speed Boost", false)
-createToggle("Auto Attack", false)
-createToggle("Auto Pick", true)
-createToggle("Player Lock On", false)
+-- Create Main Features
+createToggle(MainTab, "Auto Dodge", true)
+createToggle(MainTab, "Speed Boost", false)
+createToggle(MainTab, "Auto Attack", false)
+createToggle(MainTab, "Auto Pick", true)
+createToggle(MainTab, "Player Lock On", false)
 
 --------------------------------------------------------------------------------
--- 4. REAL-TIME METRICS & PLAYER STATUS UPDATER
+-- 4. METRICS & STATUS UPDATER
 --------------------------------------------------------------------------------
 local FrameCount = 0
 local LastTime = tick()
@@ -447,12 +514,20 @@ RunService.RenderStepped:Connect(function()
         LastTime = CurrentTime
     end
 
-    -- Update Health
+    -- Update Player Health & Stamina
     local hum = GetHumanoid()
     if hum then
         StatusHealth.Text = string.format("HP: %d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth))
     else
         StatusHealth.Text = "HP: N/A"
+    end
+    
+    local char = LocalPlayer.Character
+    local staminaVal = char and (char:FindFirstChild("Stamina") or char:FindFirstChild("Energy"))
+    if staminaVal then
+        StatusStamina.Text = string.format("Stamina: %d", math.floor(staminaVal.Value))
+    else
+        StatusStamina.Text = "Stamina: 100%"
     end
 end)
 
@@ -470,7 +545,7 @@ VerifyBtn.MouseButton1Click:Connect(function()
         VerifyBtn.Text = "INVALID KEY"
         VerifyBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
         task.wait(1)
-        VerifyBtn.Text = "VERIFY KEY"
+            VerifyBtn.Text = "VERIFY KEY"
         VerifyBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 240)
     end
 end)
