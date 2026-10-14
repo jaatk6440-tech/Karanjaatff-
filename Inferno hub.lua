@@ -4,18 +4,20 @@ local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local VirtualUser = game:GetService("VirtualUser")
+local Workspace = game:GetService("Workspace")
 local Stats = game:GetService("Stats")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Safe Parent Target
+-- Safe Parent Target (Mobile Executor Friendly)
 local TargetParent = PlayerGui
 pcall(function()
     if CoreGui then TargetParent = CoreGui end
 end)
 
+-- Cleanup existing instances
 if TargetParent:FindFirstChild("InfernoHubUI") then
     TargetParent.InfernoHubUI:Destroy()
 end
@@ -34,10 +36,10 @@ local FeatureStates = {
     ["Speed Boost"] = false
 }
 
-local OriginalSpeed = 16
 local CanDodge = true
+local CustomSpeed = 32
 
--- Theme Colors
+-- Theme Colors (Inferno / Molten Glass)
 local MoltenOrange = Color3.fromRGB(255, 85, 0)
 local DarkCharcoal = Color3.fromRGB(15, 12, 14)
 local CardBG = Color3.fromRGB(24, 18, 20)
@@ -70,30 +72,30 @@ local function IsEnemy(plr)
 end
 
 --------------------------------------------------------------------------------
--- GAMEPLAY MECHANICS (RE-ENGINEERED)
+-- GAMEPLAY AUTOMATION LOOPS
 --------------------------------------------------------------------------------
 
--- 1. SPEED BOOST (SAFE HUMANOID / ATTR MODIFIER)
+-- 1. SPEED BOOST (SAFE WALK SPEED MODIFIER)
 task.spawn(function()
-    while true do
-        task.wait(0.1)
+    while task.wait(0.1) do
         pcall(function()
             local hum = GetHumanoid()
             if hum then
                 if FeatureStates["Speed Boost"] then
-                    hum.WalkSpeed = 32
+                    hum.WalkSpeed = CustomSpeed
                 else
-                    hum.WalkSpeed = 16
+                    if hum.WalkSpeed == CustomSpeed then
+                        hum.WalkSpeed = 16
+                    end
                 end
             end
         end)
     end
 end)
 
--- 2. AUTO ATTACK (MULTI-METHOD: REMOTES + PROXIMITY + VIRTUAL TOUCH)
+-- 2. AUTO ATTACK / AUTO CATCH (HYBRID REMOTE + PROXIMITY + VIRTUAL TOUCH)
 task.spawn(function()
-    while true do
-        task.wait(0.05)
+    while task.wait(0.05) do
         if FeatureStates["Auto Attack"] then
             pcall(function()
                 local myRoot = GetRoot()
@@ -105,22 +107,32 @@ task.spawn(function()
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
-                            if dist <= 16 then
-                                -- Teleport/Snap close briefly to guarantee collision
-                                myRoot.CFrame = enemyRoot.CFrame * CFrame.new(0, 0, 1.2)
-                                
-                                -- Trigger ProximityPrompts if Huss Valley uses prompt catching
-                                for _, prompt in pairs(enemyRoot:GetDescendants()) do
+                            if dist <= 15 then
+                                -- 1. Trigger Proximity Prompts on enemy or character
+                                for _, prompt in pairs(plr.Character:GetDescendants()) do
                                     if prompt:IsA("ProximityPrompt") then
                                         fireproximityprompt(prompt)
                                     end
                                 end
 
-                                -- Fire game catch remotes directly with target arguments
+                                -- 2. Equip & Activate Tools if available
+                                local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+                                local tool = char:FindFirstChildOfClass("Tool") or (backpack and backpack:FindFirstChildOfClass("Tool"))
+                                if tool then
+                                    if tool.Parent ~= char then tool.Parent = char end
+                                    tool:Activate()
+                                end
+
+                                -- 3. Virtual Screen Tap
+                                VirtualUser:Button1Down(Vector2.new(0, 0))
+                                task.wait(0.01)
+                                VirtualUser:Button1Up(Vector2.new(0, 0))
+
+                                -- 4. Fire Combat/Catch Remote Events
                                 for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
                                     if obj:IsA("RemoteEvent") then
                                         local name = obj.Name:lower()
-                                        if name:find("catch") or name:find("tag") or name:find("hit") or name:find("attack") or name:find("touch") then
+                                        if name:find("catch") or name:find("tag") or name:find("hit") or name:find("attack") or name:find("touch") or name:find("action") then
                                             obj:FireServer(plr)
                                             obj:FireServer(plr.Character)
                                             obj:FireServer(enemyRoot)
@@ -136,10 +148,9 @@ task.spawn(function()
     end
 end)
 
--- 3. AUTO DODGE (PHYSICAL IMPULSE DASH WITH COOLDOWN)
+-- 3. AUTO DODGE (PHYSICAL VELOCITY IMPULSE)
 task.spawn(function()
-    while true do
-        task.wait(0.05)
+    while task.wait(0.05) do
         if FeatureStates["Auto Dodge"] and CanDodge then
             pcall(function()
                 local myRoot = GetRoot()
@@ -150,20 +161,20 @@ task.spawn(function()
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
-                            if dist <= 12 then
+                            if dist <= 11 then
                                 CanDodge = false
                                 
-                                -- Physical Velocity Dash Impulse
-                                local dodgeDir = myRoot.CFrame.RightVector * (math.random() > 0.5 and 50 or -50)
+                                -- Apply physical velocity boost sideways
+                                local dodgeVector = myRoot.CFrame.RightVector * (math.random() > 0.5 and 45 or -45)
                                 local bv = Instance.new("BodyVelocity")
                                 bv.MaxForce = Vector3.new(1e5, 0, 1e5)
-                                bv.Velocity = dodgeDir
+                                bv.Velocity = dodgeVector
                                 bv.Parent = myRoot
                                 
-                                task.wait(0.15)
+                                task.wait(0.12)
                                 bv:Destroy()
 
-                                task.wait(0.6)
+                                task.wait(0.65)
                                 CanDodge = true
                             end
                         end
@@ -174,29 +185,28 @@ task.spawn(function()
     end
 end)
 
--- 4. AUTO RUN (CONTINUOUS DIRECTIONAL MOVEMENT & ESCAPE ZONE TRACKING)
+-- 4. AUTO RUN (CONTINUOUS DIRECTIONAL VECTOR NAVIGATION)
 task.spawn(function()
-    while true do
-        task.wait(0.05)
+    while task.wait(0.05) do
         if FeatureStates["Auto Run"] then
             pcall(function()
                 local hum = GetHumanoid()
                 local myRoot = GetRoot()
                 if not hum or not myRoot then return end
 
-                -- Search for finish/safe zone objects in workspace
-                local finishObj = nil
-                for _, obj in pairs(workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") and (obj.Name:lower():find("finish") or obj.Name:lower():find("escape") or obj.Name:lower():find("zone") or obj.Name:lower():find("goal")) then
-                        finishObj = obj
+                local finishPos = nil
+                -- Search for finish zone in Workspace
+                for _, obj in pairs(Workspace:GetDescendants()) do
+                    if obj:IsA("BasePart") and (obj.Name:lower():find("finish") or obj.Name:lower():find("escape") or obj.Name:lower():find("goal") or obj.Name:lower():find("safe")) then
+                        finishPos = obj.Position
                         break
                     end
                 end
 
-                if finishObj then
-                    hum:MoveTo(finishObj.Position)
+                if finishPos then
+                    hum:MoveTo(finishPos)
                 else
-                    -- Direct forward vector walking push
+                    -- Direct continuous push forward
                     hum:Move(myRoot.CFrame.LookVector * 10, true)
                 end
             end)
@@ -205,8 +215,10 @@ task.spawn(function()
 end)
 
 --------------------------------------------------------------------------------
--- MOBILE UI & PANELS
+-- MOBILE INTERFACE & PANELS
 --------------------------------------------------------------------------------
+
+-- Floating Open Button
 local OpenBtn = Instance.new("TextButton")
 OpenBtn.Size = UDim2.new(0, 95, 0, 34)
 OpenBtn.Position = UDim2.new(0, 15, 0.35, 0)
@@ -224,7 +236,7 @@ local OpenStroke = Instance.new("UIStroke", OpenBtn)
 OpenStroke.Thickness = 2
 OpenStroke.Color = MoltenOrange
 
--- Key System Frame
+-- Key System Window
 local KeyFrame = Instance.new("Frame")
 KeyFrame.Size = UDim2.new(0, 300, 0, 175)
 KeyFrame.Position = UDim2.new(0.5, -150, 0.5, -87)
