@@ -4,14 +4,13 @@ local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local PathfindingService = game:GetService("PathfindingService")
-local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local Stats = game:GetService("Stats")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Safe Target Parent
+-- Safe Parent Target
 local TargetParent = PlayerGui
 pcall(function()
     if CoreGui then TargetParent = CoreGui end
@@ -35,11 +34,10 @@ local FeatureStates = {
     ["Speed Boost"] = false
 }
 
-local OriginalWalkSpeed = 16
-local SpeedBoostValue = 28
+local OriginalSpeed = 16
 local CanDodge = true
 
--- Theme Colors (Inferno / Molten Glass Theme)
+-- Theme Colors
 local MoltenOrange = Color3.fromRGB(255, 85, 0)
 local DarkCharcoal = Color3.fromRGB(15, 12, 14)
 local CardBG = Color3.fromRGB(24, 18, 20)
@@ -72,10 +70,10 @@ local function IsEnemy(plr)
 end
 
 --------------------------------------------------------------------------------
--- GAMEPLAY MECHANICS & LOOPS
+-- GAMEPLAY MECHANICS (RE-ENGINEERED)
 --------------------------------------------------------------------------------
 
--- 1. SPEED BOOST (SAVE AND RESTORE SPEED)
+-- 1. SPEED BOOST (SAFE HUMANOID / ATTR MODIFIER)
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -83,28 +81,19 @@ task.spawn(function()
             local hum = GetHumanoid()
             if hum then
                 if FeatureStates["Speed Boost"] then
-                    if hum.WalkSpeed ~= SpeedBoostValue then
-                        -- Cache original speed if not already boosted
-                        if hum.WalkSpeed ~= SpeedBoostValue then
-                            OriginalWalkSpeed = hum.WalkSpeed
-                        end
-                        hum.WalkSpeed = SpeedBoostValue
-                    end
+                    hum.WalkSpeed = 32
                 else
-                    -- Restore cached original speed
-                    if hum.WalkSpeed == SpeedBoostValue then
-                        hum.WalkSpeed = OriginalWalkSpeed
-                    end
+                    hum.WalkSpeed = 16
                 end
             end
         end)
     end
 end)
 
--- 2. AUTO ATTACK (COMBAT SYSTEM ACTIVATION)
+-- 2. AUTO ATTACK (MULTI-METHOD: REMOTES + PROXIMITY + VIRTUAL TOUCH)
 task.spawn(function()
     while true do
-        task.wait(0.1)
+        task.wait(0.05)
         if FeatureStates["Auto Attack"] then
             pcall(function()
                 local myRoot = GetRoot()
@@ -116,30 +105,26 @@ task.spawn(function()
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
-                            if dist <= 12 then
-                                -- Equip tool if in backpack
-                                local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-                                local tool = char:FindFirstChildOfClass("Tool") or (backpack and backpack:FindFirstChildOfClass("Tool"))
+                            if dist <= 16 then
+                                -- Teleport/Snap close briefly to guarantee collision
+                                myRoot.CFrame = enemyRoot.CFrame * CFrame.new(0, 0, 1.2)
                                 
-                                if tool and tool.Parent ~= char then
-                                    tool.Parent = char
+                                -- Trigger ProximityPrompts if Huss Valley uses prompt catching
+                                for _, prompt in pairs(enemyRoot:GetDescendants()) do
+                                    if prompt:IsA("ProximityPrompt") then
+                                        fireproximityprompt(prompt)
+                                    end
                                 end
 
-                                -- Activate equipped weapon
-                                if tool then
-                                    tool:Activate()
-                                end
-
-                                -- Virtual input click simulation
-                                VirtualUser:Button1Down(Vector2.new(0,0))
-                                task.wait(0.02)
-                                VirtualUser:Button1Up(Vector2.new(0,0))
-
-                                -- Fire combat remote events
+                                -- Fire game catch remotes directly with target arguments
                                 for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
-                                    if obj:IsA("RemoteEvent") and (obj.Name:lower():find("catch") or obj.Name:lower():find("attack") or obj.Name:lower():find("hit") or obj.Name:lower():find("tag")) then
-                                        obj:FireServer(plr)
-                                        obj:FireServer(plr.Character)
+                                    if obj:IsA("RemoteEvent") then
+                                        local name = obj.Name:lower()
+                                        if name:find("catch") or name:find("tag") or name:find("hit") or name:find("attack") or name:find("touch") then
+                                            obj:FireServer(plr)
+                                            obj:FireServer(plr.Character)
+                                            obj:FireServer(enemyRoot)
+                                        end
                                     end
                                 end
                             end
@@ -151,33 +136,34 @@ task.spawn(function()
     end
 end)
 
--- 3. AUTO DODGE (MOVEMENT DODGE WITH COOLDOWN)
+-- 3. AUTO DODGE (PHYSICAL IMPULSE DASH WITH COOLDOWN)
 task.spawn(function()
     while true do
         task.wait(0.05)
         if FeatureStates["Auto Dodge"] and CanDodge then
             pcall(function()
                 local myRoot = GetRoot()
-                local hum = GetHumanoid()
-                if not myRoot or not hum then return end
+                if not myRoot then return end
 
                 for _, plr in pairs(Players:GetPlayers()) do
                     if IsEnemy(plr) then
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
-                            if dist <= 9 then
+                            if dist <= 12 then
                                 CanDodge = false
                                 
-                                -- Dodge using movement controls
-                                local rightVector = myRoot.CFrame.RightVector
-                                local dodgeDir = (math.random() > 0.5 and rightVector or -rightVector)
-                                local targetPos = myRoot.Position + (dodgeDir * 18)
+                                -- Physical Velocity Dash Impulse
+                                local dodgeDir = myRoot.CFrame.RightVector * (math.random() > 0.5 and 50 or -50)
+                                local bv = Instance.new("BodyVelocity")
+                                bv.MaxForce = Vector3.new(1e5, 0, 1e5)
+                                bv.Velocity = dodgeDir
+                                bv.Parent = myRoot
                                 
-                                hum:MoveTo(targetPos)
-                                
-                                -- Cooldown management
-                                task.wait(0.8)
+                                task.wait(0.15)
+                                bv:Destroy()
+
+                                task.wait(0.6)
                                 CanDodge = true
                             end
                         end
@@ -188,44 +174,30 @@ task.spawn(function()
     end
 end)
 
--- 4. AUTO RUN (PATHFINDING & MOVETO NAVIGATION)
+-- 4. AUTO RUN (CONTINUOUS DIRECTIONAL MOVEMENT & ESCAPE ZONE TRACKING)
 task.spawn(function()
     while true do
-        task.wait(0.2)
+        task.wait(0.05)
         if FeatureStates["Auto Run"] then
             pcall(function()
                 local hum = GetHumanoid()
                 local myRoot = GetRoot()
                 if not hum or not myRoot then return end
 
-                -- Locate designated finish zone
-                local finishPart = nil
+                -- Search for finish/safe zone objects in workspace
+                local finishObj = nil
                 for _, obj in pairs(workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") and (obj.Name:lower():find("finish") or obj.Name:lower():find("escape") or obj.Name:lower():find("goal") or obj.Name:lower():find("end")) then
-                        finishPart = obj
+                    if obj:IsA("BasePart") and (obj.Name:lower():find("finish") or obj.Name:lower():find("escape") or obj.Name:lower():find("zone") or obj.Name:lower():find("goal")) then
+                        finishObj = obj
                         break
                     end
                 end
 
-                if finishPart then
-                    -- Compute Path via PathfindingService
-                    local path = PathfindingService:CreatePath({
-                        AgentRadius = 2,
-                        AgentHeight = 5,
-                        AgentCanJump = true
-                    })
-                    
-                    path:ComputeAsync(myRoot.Position, finishPart.Position)
-                    local waypoints = path:GetWaypoints()
-
-                    if path.Status == Enum.PathStatus.Success and #waypoints > 1 then
-                        hum:MoveTo(waypoints[2].Position)
-                    else
-                        hum:MoveTo(finishPart.Position)
-                    end
+                if finishObj then
+                    hum:MoveTo(finishObj.Position)
                 else
-                    -- Fallback forward movement
-                    hum:MoveTo(myRoot.Position + (myRoot.CFrame.LookVector * 25))
+                    -- Direct forward vector walking push
+                    hum:Move(myRoot.CFrame.LookVector * 10, true)
                 end
             end)
         end
