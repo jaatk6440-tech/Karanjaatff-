@@ -69,8 +69,13 @@ local function GetHumanoid()
     return char and char:FindFirstChildOfClass("Humanoid")
 end
 
+local function GetRoot()
+    local char = GetCharacter()
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
 --------------------------------------------------------------------------------
--- 1. SAFE CONFIG LOADING / SAVING
+-- 1. CONFIG SAVING & LOADING
 --------------------------------------------------------------------------------
 local ConfigFileName = "KenHub_Config.json"
 
@@ -164,7 +169,78 @@ local function Notify(title, message)
 end
 
 --------------------------------------------------------------------------------
--- 3. KEY SYSTEM UI
+-- 3. FEATURE HOOKS & LOGIC
+--------------------------------------------------------------------------------
+local FeatureHooks = {
+    ["Highlight Runners"] = function(state)
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Team and player.Team.Name:lower():find("runner") then
+                if state and player.Character then
+                    local highlight = Instance.new("Highlight")
+                    highlight.Name = "RunnerHighlight"
+                    highlight.FillColor = Color3.fromRGB(50, 255, 120)
+                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    highlight.Parent = player.Character
+                elseif player.Character and player.Character:FindFirstChild("RunnerHighlight") then
+                    player.Character.RunnerHighlight:Destroy()
+                end
+            end
+        end
+    end,
+
+    ["Highlight Catchers"] = function(state)
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Team and player.Team.Name:lower():find("catcher") then
+                if state and player.Character then
+                    local highlight = Instance.new("Highlight")
+                    highlight.Name = "CatcherHighlight"
+                    highlight.FillColor = Color3.fromRGB(255, 60, 60)
+                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    highlight.Parent = player.Character
+                elseif player.Character and player.Character:FindFirstChild("CatcherHighlight") then
+                    player.Character.CatcherHighlight:Destroy()
+                end
+            end
+        end
+    end,
+
+    ["Catcher Radar"] = function(state)
+        task.spawn(function()
+            while FeatureStates["Catcher Radar"] do
+                task.wait(1.5)
+                pcall(function()
+                    local myRoot = GetRoot()
+                    if not myRoot then return end
+                    for _, player in pairs(Players:GetPlayers()) do
+                        if player ~= LocalPlayer and player.Team and player.Team.Name:lower():find("catcher") then
+                            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                                local dist = (myRoot.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                                if dist <= 25 then
+                                    Notify("WARNING", "Catcher nearby! (" .. math.floor(dist) .. " studs)")
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        end)
+    end,
+
+    ["Runner Speed Boost"] = function(state)
+        local hum = GetHumanoid()
+        if hum then
+            if state then
+                OriginalWalkSpeed = hum.WalkSpeed > 0 and hum.WalkSpeed or 16
+                hum.WalkSpeed = 28
+            else
+                hum.WalkSpeed = OriginalWalkSpeed
+            end
+        end
+    end
+}
+
+--------------------------------------------------------------------------------
+-- 4. KEY SYSTEM UI
 --------------------------------------------------------------------------------
 local KeyFrame = Instance.new("Frame")
 KeyFrame.Size = UDim2.new(0, 320, 0, 180)
@@ -212,7 +288,7 @@ VerifyBtn.Parent = KeyFrame
 Instance.new("UICorner", VerifyBtn).CornerRadius = UDim.new(0, 6)
 
 --------------------------------------------------------------------------------
--- 4. MAIN HUB FRAME & NAVIGATION
+-- 5. MAIN HUB FRAME & NAVIGATION
 --------------------------------------------------------------------------------
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 580, 0, 340)
@@ -262,7 +338,7 @@ BrandText.TextXAlignment = Enum.TextXAlignment.Left
 BrandText.Parent = LeftPanel
 
 local TabContainer = Instance.new("Frame")
-TabContainer.Size = UDim2.new(1, -20, 0, 120)
+TabContainer.Size = UDim2.new(1, -20, 0, 150)
 TabContainer.Position = UDim2.new(0, 10, 0, 45)
 TabContainer.BackgroundTransparency = 1
 TabContainer.Parent = LeftPanel
@@ -273,8 +349,8 @@ TabList.Padding = UDim.new(0, 6)
 TabList.Parent = TabContainer
 
 local PlayerStatusBox = Instance.new("Frame")
-PlayerStatusBox.Size = UDim2.new(1, -20, 0, 130)
-PlayerStatusBox.Position = UDim2.new(0, 10, 1, -140)
+PlayerStatusBox.Size = UDim2.new(1, -20, 0, 120)
+PlayerStatusBox.Position = UDim2.new(0, 10, 1, -130)
 PlayerStatusBox.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
 PlayerStatusBox.Parent = LeftPanel
 Instance.new("UICorner", PlayerStatusBox).CornerRadius = UDim.new(0, 8)
@@ -400,13 +476,14 @@ local function CreateTabPage(name)
 end
 
 local MainTab = CreateTabPage("Main")
+local TeamsTab = CreateTabPage("Teams")
 local StatsTab = CreateTabPage("Stats")
 local SettingsTab = CreateTabPage("Settings")
 MainTab.Visible = true
 
 local function CreateTabButton(name)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 32)
+    btn.Size = UDim2.new(1, 0, 0, 28)
     btn.BackgroundColor3 = (name == "Main") and Color3.fromRGB(0, 180, 240) or Color3.fromRGB(18, 22, 28)
     btn.Text = name
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -426,8 +503,74 @@ local function CreateTabButton(name)
 end
 
 CreateTabButton("Main")
+CreateTabButton("Teams")
 CreateTabButton("Stats")
 CreateTabButton("Settings")
+
+-- Toggle Creator Utility
+local function createToggle(parentPage, title, defaultState)
+    FeatureStates[title] = defaultState
+
+    local toggleCard = Instance.new("Frame")
+    toggleCard.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
+    toggleCard.Parent = parentPage
+    Instance.new("UICorner", toggleCard).CornerRadius = UDim.new(0, 6)
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -50, 1, 0)
+    titleLabel.Position = UDim2.new(0, 10, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title
+    titleLabel.TextColor3 = Color3.fromRGB(220, 230, 240)
+    titleLabel.TextSize = 11
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = toggleCard
+
+    local switchBtn = Instance.new("TextButton")
+    switchBtn.Size = UDim2.new(0, 34, 0, 18)
+    switchBtn.Position = UDim2.new(1, -40, 0.5, -9)
+    switchBtn.BackgroundColor3 = defaultState and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(50, 55, 65)
+    switchBtn.Text = ""
+    switchBtn.Parent = toggleCard
+    Instance.new("UICorner", switchBtn).CornerRadius = UDim.new(1, 0)
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0, 14, 0, 14)
+    knob.Position = defaultState and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    knob.Parent = switchBtn
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+    switchBtn.MouseButton1Click:Connect(function()
+        FeatureStates[title] = not FeatureStates[title]
+        local isEnabled = FeatureStates[title]
+
+        if isEnabled then
+            TweenService:Create(switchBtn, TweenInfo.new(0.15), 
+                                TweenService:Create(switchBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(0, 200, 100)}):Play()
+            TweenService:Create(knob, TweenInfo.new(0.15), {Position = UDim2.new(1, -16, 0.5, -7)}):Play()
+            Notify(title, "Status: Enabled")
+        else
+            TweenService:Create(switchBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(50, 55, 65)}):Play()
+            TweenService:Create(knob, TweenInfo.new(0.15), {Position = UDim2.new(0, 2, 0.5, -7)}):Play()
+            Notify(title, "Status: Disabled")
+        end
+
+        if FeatureHooks[title] then
+            FeatureHooks[title](isEnabled)
+        end
+    end)
+end
+
+--------------------------------------------------------------------------------
+-- 6. POPULATE TABS
+--------------------------------------------------------------------------------
+-- Teams Tab (Role Specific Features)
+createToggle(TeamsTab, "Highlight Runners", false)
+createToggle(TeamsTab, "Highlight Catchers", false)
+createToggle(TeamsTab, "Catcher Radar", false)
+createToggle(TeamsTab, "Runner Speed Boost", false)
 
 -- Settings Panel Controls
 local RebindBtn = Instance.new("TextButton")
@@ -560,3 +703,4 @@ VerifyBtn.MouseButton1Click:Connect(function()
         VerifyBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 240)
     end
 end)
+    
