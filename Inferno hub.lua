@@ -8,14 +8,19 @@ local Workspace = game:GetService("Workspace")
 local Stats = game:GetService("Stats")
 
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10) or LocalPlayer:FindFirstChildOfClass("PlayerGui")
 
--- Safe Parent Target
+if not PlayerGui then return end
+
+-- Safe Parent Target (Mobile Executor Friendly UI Injection)
 local TargetParent = PlayerGui
 pcall(function()
-    if CoreGui then TargetParent = CoreGui end
+    if CoreGui and CoreGui:FindFirstChild("RobloxGui") then
+        TargetParent = CoreGui
+    end
 end)
 
+-- Cleanup existing instances to prevent duplicates
 if TargetParent:FindFirstChild("InfernoHubUI") then
     TargetParent.InfernoHubUI:Destroy()
 end
@@ -24,6 +29,7 @@ local InfernoHubUI = Instance.new("ScreenGui")
 InfernoHubUI.Name = "InfernoHubUI"
 InfernoHubUI.Parent = TargetParent
 InfernoHubUI.ResetOnSpawn = false
+InfernoHubUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 -- Config & Key Setup
 local CORRECT_KEY = "KARAN X AIZEN"
@@ -37,7 +43,7 @@ local FeatureStates = {
 local CanDodge = true
 local CustomSpeed = 32
 
--- Theme Colors
+-- Theme Colors (Molten Glass / Inferno)
 local MoltenOrange = Color3.fromRGB(255, 85, 0)
 local DarkCharcoal = Color3.fromRGB(15, 12, 14)
 local CardBG = Color3.fromRGB(24, 18, 20)
@@ -91,7 +97,7 @@ task.spawn(function()
     end
 end)
 
--- 2. AUTO ATTACK (ON RUNNERS / ENEMIES)
+-- 2. AUTO ATTACK / CATCH
 task.spawn(function()
     while task.wait(0.05) do
         if FeatureStates["Auto Attack"] then
@@ -177,7 +183,7 @@ task.spawn(function()
     end
 end)
 
--- 4. AUTO RUN TO SAFE ZONE (DIRECT CFRAME MOMENTUM CROSSING)
+-- 4. AUTO RUN TO SAFE ZONE
 task.spawn(function()
     while task.wait(0.02) do
         if FeatureStates["Auto Run"] then
@@ -185,9 +191,7 @@ task.spawn(function()
                 local myRoot = GetRoot()
                 local hum = GetHumanoid()
                 if not myRoot or not hum then return end
-
-                -- Directly shift root CFrame forward to guarantee crossing the boundary line instantly
-                myRoot.CFrame = myRoot.CFrame + (myRoot.CFrame.LookVector * 0.8)
+                myRoot.CFrame = myRoot.CFrame + (myRoot.CFrame.LookVector * 0.9)
             end)
         end
     end
@@ -227,6 +231,7 @@ local KeyStroke = Instance.new("UIStroke", KeyFrame)
 KeyStroke.Thickness = 2
 KeyStroke.Color = MoltenOrange
 
+local Key
 local KeyTitle = Instance.new("TextLabel")
 KeyTitle.Size = UDim2.new(1, 0, 0, 40)
 KeyTitle.BackgroundTransparency = 1
@@ -304,8 +309,7 @@ CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
 CloseBtn.TextSize = 10
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.Parent = Header
-Instance.new("UIC")
-    Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
 
 -- Stats Widget (FPS & Ping)
 local StatsLabel = Instance.new("TextLabel")
