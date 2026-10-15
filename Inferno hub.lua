@@ -52,7 +52,7 @@ local CardBG = Color3.fromRGB(24, 18, 20)
 local AccentGold = Color3.fromRGB(255, 170, 0)
 
 --------------------------------------------------------------------------------
--- HELPER FUNCTIONS
+-- HELPER FUNCTIONS & SANITY CHECKS
 --------------------------------------------------------------------------------
 local function GetCharacter(plr)
     plr = plr or LocalPlayer
@@ -67,6 +67,21 @@ end
 local function GetHumanoid(plr)
     local char = GetCharacter(plr)
     return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+-- Validate target distance and server state sanity check
+local function ValidateTarget(targetPlayer)
+    if not targetPlayer or targetPlayer == LocalPlayer then return false end
+    
+    local myRoot = GetRoot()
+    local enemyRoot = GetRoot(targetPlayer)
+    local enemyHum = GetHumanoid(targetPlayer)
+    
+    if myRoot and enemyRoot and enemyHum and enemyHum.Health > 0 then
+        local dist = (myRoot.Position - enemyRoot.Position).Magnitude
+        return dist <= CatchRange, dist
+    end
+    return false, math.huge
 end
 
 --------------------------------------------------------------------------------
@@ -117,7 +132,7 @@ task.spawn(function()
     end
 end)
 
--- 2. HUSS VALLEY OPTIMIZED AUTO CATCH
+-- 2. HUSS VALLEY VALIDATED AUTO CATCH
 task.spawn(function()
     while task.wait(0.01) do
         if FeatureStates["Auto Catch"] then
@@ -126,7 +141,7 @@ task.spawn(function()
                 local myChar = GetCharacter()
                 if not myRoot or not myChar then return end
 
-                -- A. Workspace Prompts / Balls in Huss Valley
+                -- A. Proximity Prompts Check
                 for _, prompt in pairs(Workspace:GetDescendants()) do
                     if prompt:IsA("ProximityPrompt") then
                         local parentPart = prompt.Parent
@@ -138,80 +153,77 @@ task.spawn(function()
                     end
                 end
 
-                -- B. Target All Opponents
+                -- B. Target Opponents with Distance Validation
                 for _, plr in pairs(Players:GetPlayers()) do
-                    if plr ~= LocalPlayer then
+                    local isValid, dist = ValidateTarget(plr)
+                    if isValid then
                         local enemyRoot = GetRoot(plr)
                         local enemyChar = GetCharacter(plr)
 
                         if enemyRoot and enemyChar then
-                            local dist = (myRoot.Position - enemyRoot.Position).Magnitude
-                            if dist <= CatchRange then
-
-                                -- 1. Auto Equip Ball / Tool from Backpack
-                                local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-                                if backpack then
-                                    local heldTool = myChar:FindFirstChildOfClass("Tool")
-                                    if not heldTool then
-                                        local catchTool = backpack:FindFirstChildOfClass("Tool")
-                                        if catchTool then
-                                            catchTool.Parent = myChar
-                                        end
+                            -- 1. Auto Equip Tool/Ball
+                            local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+                            if backpack then
+                                local heldTool = myChar:FindFirstChildOfClass("Tool")
+                                if not heldTool then
+                                    local catchTool = backpack:FindFirstChildOfClass("Tool")
+                                    if catchTool then
+                                        catchTool.Parent = myChar
                                     end
                                 end
-
-                                -- 2. Virtual Input & Key Actions
-                                VirtualUser:CaptureController()
-                                VirtualUser:Button1Down(Vector2.new(0, 0))
-
-                                pcall(function()
-                                    VirtualInputManager:SendKeyPressEvent(Enum.KeyCode.E, true, game)
-                                    task.wait(0.01)
-                                    VirtualInputManager:SendKeyPressEvent(Enum.KeyCode.E, false, game)
-
-                                    VirtualInputManager:SendKeyPressEvent(Enum.KeyCode.F, true, game)
-                                    task.wait(0.01)
-                                    VirtualInputManager:SendKeyPressEvent(Enum.KeyCode.F, false, game)
-                                end)
-
-                                -- 3. Trigger Active Tool Activation
-                                local activeTool = myChar:FindFirstChildOfClass("Tool")
-                                if activeTool then
-                                    activeTool:Activate()
-                                end
-
-                                -- 4. Touch Interest / Hitbox Triggering
-                                local myHand = myChar:FindFirstChild("RightHand") or myChar:FindFirstChild("Right Arm") or myRoot
-                                for _, part in pairs(enemyChar:GetChildren()) do
-                                    if part:IsA("BasePart") then
-                                        firetouchinterest(myHand, part, 0)
-                                        task.wait()
-                                        firetouchinterest(myHand, part, 1)
-                                    end
-                                end
-
-                                -- 5. Huss Valley Specific Remote Events
-                                local targetedRemotes = {
-                                    "Catch", "CatchRemote", "CatchEvent", "Grab", 
-                                    "Tag", "Throw", "ThrowBall", "Pass", "Hit"
-                                }
-
-                                for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
-                                    if obj:IsA("RemoteEvent") or obj:IsA("UnreliableRemoteEvent") then
-                                        for _, name in ipairs(targetedRemotes) do
-                                            if string.find(obj.Name:lower(), name:lower()) then
-                                                pcall(function()
-                                                    obj:FireServer(plr)
-                                                    obj:FireServer(enemyChar)
-                                                    obj:FireServer(enemyRoot)
-                                                    obj:FireServer(enemyRoot.Position)
-                                                end)
-                                            end
-                                        end
-                                    end
-                                end
-
                             end
+
+                            -- 2. Virtual Input & Key Simulation
+                            VirtualUser:CaptureController()
+                            VirtualUser:Button1Down(Vector2.new(0, 0))
+
+                            pcall(function()
+                                VirtualInputManager:SendKeyPressEvent(Enum.KeyCode.E, true, game)
+                                task.wait(0.01)
+                                VirtualInputManager:SendKeyPressEvent(Enum.KeyCode.E, false, game)
+
+                                VirtualInputManager:SendKeyPressEvent(Enum.KeyCode.F, true, game)
+                                task.wait(0.01)
+                                VirtualInputManager:SendKeyPressEvent(Enum.KeyCode.F, false, game)
+                            end)
+
+                            -- 3. Tool Trigger
+                            local activeTool = myChar:FindFirstChildOfClass("Tool")
+                            if activeTool then
+                                activeTool:Activate()
+                            end
+
+                            -- 4. Touch Interest Simulation
+                            local myHand = myChar:FindFirstChild("RightHand") or myChar:FindFirstChild("Right Arm") or myRoot
+                            for _, part in pairs(enemyChar:GetChildren()) do
+                                if part:IsA("BasePart") then
+                                    firetouchinterest(myHand, part, 0)
+                                    task.wait()
+                                    firetouchinterest(myHand, part, 1)
+                                end
+                            end
+
+                            -- 5. Safe Event Invocation
+                            local targetedRemotes = {
+                                "Catch", "CatchRemote", "CatchEvent", "Grab", 
+                                "Tag", "Throw", "ThrowBall", "Pass", "Hit"
+                            }
+
+                            for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+                                if obj:IsA("RemoteEvent") or obj:IsA("UnreliableRemoteEvent") then
+                                    for _, name in ipairs(targetedRemotes) do
+                                        if string.find(obj.Name:lower(), name:lower()) then
+                                            pcall(function()
+                                                obj:FireServer(plr)
+                                                obj:FireServer(enemyChar)
+                                                obj:FireServer(enemyRoot)
+                                                obj:FireServer(enemyRoot.Position)
+                                            end)
+                                        end
+                                    end
+                                end
+                            end
+
                         end
                     end
                 end
@@ -220,7 +232,7 @@ task.spawn(function()
     end
 end)
 
--- 3. AUTO DODGE (UNTOUCHED)
+-- 3. AUTO DODGE
 task.spawn(function()
     while task.wait(0.05) do
         if FeatureStates["Auto Dodge"] and CanDodge then
@@ -255,7 +267,7 @@ task.spawn(function()
     end
 end)
 
--- 4. AUTO RUN TO SAFE ZONE (UNTOUCHED)
+-- 4. AUTO RUN TO SAFE ZONE
 task.spawn(function()
     while task.wait(0.02) do
         if FeatureStates["Auto Run"] then
