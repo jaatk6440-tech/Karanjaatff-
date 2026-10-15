@@ -34,7 +34,7 @@ InfernoHubUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 -- Config & Key Setup
 local CORRECT_KEY = "KARAN X AIZEN"
 local FeatureStates = {
-    ["Auto Attack"] = false,
+    ["Auto Catch"] = false,
     ["Auto Dodge"] = false,
     ["Auto Run"] = false,
     ["Speed Boost"] = false
@@ -97,21 +97,34 @@ task.spawn(function()
     end
 end)
 
--- 2. AUTO CATCH / AUTO ATTACK (UPDATED)
+-- 2. AUTO CATCH (REPLACES AUTO ATTACK)
 task.spawn(function()
     while task.wait(0.02) do
-        if FeatureStates["Auto Attack"] then
+        if FeatureStates["Auto Catch"] then
             pcall(function()
                 local myRoot = GetRoot()
                 local char = GetCharacter()
                 if not myRoot or not char then return end
 
+                -- A. Workspace Proximity Prompts / Ball Catching
+                for _, obj in pairs(Workspace:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") then
+                        local parentPart = obj.Parent
+                        if parentPart and parentPart:IsA("BasePart") then
+                            if (myRoot.Position - parentPart.Position).Magnitude <= 22 then
+                                fireproximityprompt(obj)
+                            end
+                        end
+                    end
+                end
+
+                -- B. Enemy / Target Catching Range Check
                 for _, plr in pairs(Players:GetPlayers()) do
                     if IsEnemy(plr) then
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
-                            if dist <= 20 then
+                            if dist <= 22 then
                                 for _, prompt in pairs(plr.Character:GetDescendants()) do
                                     if prompt:IsA("ProximityPrompt") then
                                         fireproximityprompt(prompt)
@@ -128,7 +141,7 @@ task.spawn(function()
                                 for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
                                     if obj:IsA("RemoteEvent") then
                                         local name = obj.Name:lower()
-                                        if name:find("catch") or name:find("tag") or name:find("hit") or name:find("grab") or name:find("touch") or name:find("action") then
+                                        if name:find("catch") or name:find("tag") or name:find("grab") or name:find("touch") or name:find("action") or name:find("hit") then
                                             obj:FireServer(plr)
                                             obj:FireServer(plr.Character)
                                             obj:FireServer(enemyRoot)
@@ -179,7 +192,7 @@ task.spawn(function()
     end
 end)
 
--- 4. AUTO RUN TO SAFE ZONE
+-- 4. AUTO RUN TO SAFE ZONE (LOCKED & WORKING - UNTOUCHED)
 task.spawn(function()
     while task.wait(0.02) do
         if FeatureStates["Auto Run"] then
@@ -362,7 +375,7 @@ local function createToggle(title)
     end)
 end
 
-createToggle("Auto Attack")
+createToggle("Auto Catch")
 createToggle("Auto Dodge")
 createToggle("Auto Run")
 createToggle("Speed Boost")
