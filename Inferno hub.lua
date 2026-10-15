@@ -177,17 +177,17 @@ task.spawn(function()
     end
 end)
 
--- 4. AUTO RUN TO SAFE ZONE (REFINED SMOOTH LINEAR CROSSING)
+-- 4. AUTO RUN TO SAFE ZONE (DIRECT CFRAME MOMENTUM CROSSING)
 task.spawn(function()
-    while task.wait(0.03) do
+    while task.wait(0.02) do
         if FeatureStates["Auto Run"] then
             pcall(function()
-                local hum = GetHumanoid()
                 local myRoot = GetRoot()
-                if not hum or not myRoot then return end
+                local hum = GetHumanoid()
+                if not myRoot or not hum then return end
 
-                -- Lock direction forward and maintain continuous linear momentum across boundaries
-                hum:Move(Vector3.new(0, 0, -1), false)
+                -- Directly shift root CFrame forward to guarantee crossing the boundary line instantly
+                myRoot.CFrame = myRoot.CFrame + (myRoot.CFrame.LookVector * 0.8)
             end)
         end
     end
@@ -304,7 +304,8 @@ CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
 CloseBtn.TextSize = 10
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.Parent = Header
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
+Instance.new("UIC")
+    Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
 
 -- Stats Widget (FPS & Ping)
 local StatsLabel = Instance.new("TextLabel")
