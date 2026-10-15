@@ -1,7 +1,6 @@
 -- Services
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
@@ -11,13 +10,12 @@ local Stats = game:GetService("Stats")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Safe Parent Target (Mobile Executor Friendly)
+-- Safe Parent Target
 local TargetParent = PlayerGui
 pcall(function()
     if CoreGui then TargetParent = CoreGui end
 end)
 
--- Cleanup existing instances
 if TargetParent:FindFirstChild("InfernoHubUI") then
     TargetParent.InfernoHubUI:Destroy()
 end
@@ -39,7 +37,7 @@ local FeatureStates = {
 local CanDodge = true
 local CustomSpeed = 32
 
--- Theme Colors (Inferno / Molten Glass)
+-- Theme Colors
 local MoltenOrange = Color3.fromRGB(255, 85, 0)
 local DarkCharcoal = Color3.fromRGB(15, 12, 14)
 local CardBG = Color3.fromRGB(24, 18, 20)
@@ -75,7 +73,7 @@ end
 -- GAMEPLAY AUTOMATION LOOPS
 --------------------------------------------------------------------------------
 
--- 1. SPEED BOOST (SAFE WALK SPEED MODIFIER)
+-- 1. SPEED BOOST
 task.spawn(function()
     while task.wait(0.1) do
         pcall(function()
@@ -93,7 +91,7 @@ task.spawn(function()
     end
 end)
 
--- 2. AUTO ATTACK / AUTO CATCH (HYBRID REMOTE + PROXIMITY + VIRTUAL TOUCH)
+-- 2. AUTO ATTACK (ON RUNNERS / ENEMIES)
 task.spawn(function()
     while task.wait(0.05) do
         if FeatureStates["Auto Attack"] then
@@ -108,14 +106,12 @@ task.spawn(function()
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
                             if dist <= 15 then
-                                -- 1. Trigger Proximity Prompts on enemy or character
                                 for _, prompt in pairs(plr.Character:GetDescendants()) do
                                     if prompt:IsA("ProximityPrompt") then
                                         fireproximityprompt(prompt)
                                     end
                                 end
 
-                                -- 2. Equip & Activate Tools if available
                                 local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
                                 local tool = char:FindFirstChildOfClass("Tool") or (backpack and backpack:FindFirstChildOfClass("Tool"))
                                 if tool then
@@ -123,12 +119,10 @@ task.spawn(function()
                                     tool:Activate()
                                 end
 
-                                -- 3. Virtual Screen Tap
                                 VirtualUser:Button1Down(Vector2.new(0, 0))
                                 task.wait(0.01)
                                 VirtualUser:Button1Up(Vector2.new(0, 0))
 
-                                -- 4. Fire Combat/Catch Remote Events
                                 for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
                                     if obj:IsA("RemoteEvent") then
                                         local name = obj.Name:lower()
@@ -148,7 +142,7 @@ task.spawn(function()
     end
 end)
 
--- 3. AUTO DODGE (PHYSICAL VELOCITY IMPULSE)
+-- 3. AUTO DODGE (LOCKED & UNTOUCHED)
 task.spawn(function()
     while task.wait(0.05) do
         if FeatureStates["Auto Dodge"] and CanDodge then
@@ -163,8 +157,6 @@ task.spawn(function()
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
                             if dist <= 11 then
                                 CanDodge = false
-                                
-                                -- Apply physical velocity boost sideways
                                 local dodgeVector = myRoot.CFrame.RightVector * (math.random() > 0.5 and 45 or -45)
                                 local bv = Instance.new("BodyVelocity")
                                 bv.MaxForce = Vector3.new(1e5, 0, 1e5)
@@ -185,7 +177,7 @@ task.spawn(function()
     end
 end)
 
--- 4. AUTO RUN (CONTINUOUS DIRECTIONAL VECTOR NAVIGATION)
+-- 4. AUTO RUN TO SAFE ZONE (RE-ENGINEERED FOR WHITE BOUNDARY LINES)
 task.spawn(function()
     while task.wait(0.05) do
         if FeatureStates["Auto Run"] then
@@ -194,20 +186,29 @@ task.spawn(function()
                 local myRoot = GetRoot()
                 if not hum or not myRoot then return end
 
-                local finishPos = nil
-                -- Search for finish zone in Workspace
+                -- Locate white boundary parts or safe zones in Workspace
+                local targetPos = nil
+                local shortestDist = math.huge
+
                 for _, obj in pairs(Workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") and (obj.Name:lower():find("finish") or obj.Name:lower():find("escape") or obj.Name:lower():find("goal") or obj.Name:lower():find("safe")) then
-                        finishPos = obj.Position
-                        break
+                    if obj:IsA("BasePart") then
+                        local name = obj.Name:lower()
+                        -- Target white lines, boundaries, safe zones, or finish parts
+                        if name:find("line") or name:find("boundary") or name:find("safe") or name:find("finish") or name:find("goal") then
+                            local dist = (myRoot.Position - obj.Position).Magnitude
+                            if dist < shortestDist then
+                                shortestDist = dist
+                                targetPos = obj.Position
+                            end
+                        end
                     end
                 end
 
-                if finishPos then
-                    hum:MoveTo(finishPos)
+                if targetPos then
+                    hum:MoveTo(targetPos)
                 else
-                    -- Direct continuous push forward
-                    hum:Move(myRoot.CFrame.LookVector * 10, true)
+                    -- Fallback forward cross vector push toward opposite side
+                    hum:Move(myRoot.CFrame.LookVector * 12, true)
                 end
             end)
         end
@@ -217,8 +218,6 @@ end)
 --------------------------------------------------------------------------------
 -- MOBILE INTERFACE & PANELS
 --------------------------------------------------------------------------------
-
--- Floating Open Button
 local OpenBtn = Instance.new("TextButton")
 OpenBtn.Size = UDim2.new(0, 95, 0, 34)
 OpenBtn.Position = UDim2.new(0, 15, 0.35, 0)
@@ -394,7 +393,6 @@ createToggle("Speed Boost")
 -- EVENT LISTENERS
 --------------------------------------------------------------------------------
 
--- FPS & Ping Loop
 local FrameCount = 0
 local LastTime = tick()
 RunService.RenderStepped:Connect(function()
