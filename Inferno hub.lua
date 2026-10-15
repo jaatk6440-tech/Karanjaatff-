@@ -40,7 +40,7 @@ local FeatureStates = {
     ["Speed Boost"] = false
 }
 
-local CatchRange = 25 -- Default Max Catch Range
+local CatchRange = 25 -- Default Max Range for Huss Valley
 local CanDodge = true
 local CustomSpeed = 32
 
@@ -68,6 +68,14 @@ local function GetHumanoid(plr)
     return char and char:FindFirstChildOfClass("Humanoid")
 end
 
+local function IsEnemy(plr)
+    if not plr or plr == LocalPlayer then return false end
+    if LocalPlayer.Team and plr.Team then
+        return LocalPlayer.Team ~= plr.Team
+    end
+    return true
+end
+
 --------------------------------------------------------------------------------
 -- GAMEPLAY AUTOMATION LOOPS
 --------------------------------------------------------------------------------
@@ -90,7 +98,7 @@ task.spawn(function()
     end
 end)
 
--- 2. UNIVERSAL AUTO CATCH
+-- 2. HUSS VALLEY AUTO CATCH
 task.spawn(function()
     while task.wait(0.01) do
         if FeatureStates["Auto Catch"] then
@@ -99,7 +107,7 @@ task.spawn(function()
                 local char = GetCharacter()
                 if not myRoot or not char then return end
 
-                -- A. Proximity Prompts Triggering
+                -- A. Workspace Proximity Prompts
                 for _, prompt in pairs(Workspace:GetDescendants()) do
                     if prompt:IsA("ProximityPrompt") then
                         local parentPart = prompt.Parent
@@ -111,18 +119,18 @@ task.spawn(function()
                     end
                 end
 
-                -- B. Scan All Players within Range
+                -- B. Detect & Catch Players in Huss Valley Range
                 for _, plr in pairs(Players:GetPlayers()) do
-                    if plr ~= LocalPlayer then
+                    if IsEnemy(plr) then
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
                             if dist <= CatchRange then
-                                -- 1. Virtual Screen Tap/Click
+                                -- 1. Simulate Touch / Click Input
                                 VirtualUser:CaptureController()
                                 VirtualUser:Button1Down(Vector2.new(0, 0))
 
-                                -- 2. Tool Equip & Activation
+                                -- 2. Equip and Activate Catching Tool
                                 local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
                                 local tool = char:FindFirstChildOfClass("Tool") or (backpack and backpack:FindFirstChildOfClass("Tool"))
                                 if tool then
@@ -130,7 +138,7 @@ task.spawn(function()
                                     tool:Activate()
                                 end
 
-                                -- 3. Player Character Prompts
+                                -- 3. Trigger Character Catch Prompts
                                 if plr.Character then
                                     for _, prompt in pairs(plr.Character:GetDescendants()) do
                                         if prompt:IsA("ProximityPrompt") then
@@ -139,12 +147,15 @@ task.spawn(function()
                                     end
                                 end
 
-                                -- 4. Remote Event Firing
+                                -- 4. Huss Valley Catch Remote Firing
                                 for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
                                     if obj:IsA("RemoteEvent") then
-                                        obj:FireServer(plr)
-                                        obj:FireServer(plr.Character)
-                                        obj:FireServer(enemyRoot)
+                                        local name = obj.Name:lower()
+                                        if name:find("catch") or name:find("tag") or name:find("grab") or name:find("touch") or name:find("action") or name:find("hit") or name:find("huss") then
+                                            obj:FireServer(plr)
+                                            obj:FireServer(plr.Character)
+                                            obj:FireServer(enemyRoot)
+                                        end
                                     end
                                 end
                             end
@@ -165,7 +176,7 @@ task.spawn(function()
                 if not myRoot then return end
 
                 for _, plr in pairs(Players:GetPlayers()) do
-                    if plr ~= LocalPlayer then
+                    if IsEnemy(plr) then
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
