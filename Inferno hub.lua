@@ -40,6 +40,7 @@ local FeatureStates = {
     ["Speed Boost"] = false
 }
 
+local CatchRange = 15 -- Default: Medium Range (15 studs)
 local CanDodge = true
 local CustomSpeed = 32
 
@@ -97,7 +98,7 @@ task.spawn(function()
     end
 end)
 
--- 2. ENHANCED AUTO CATCH / AUTO ATTACK
+-- 2. ENHANCED AUTO CATCH (DYNAMIC RANGE DETECTION)
 task.spawn(function()
     while task.wait(0.01) do
         if FeatureStates["Auto Catch"] then
@@ -106,39 +107,42 @@ task.spawn(function()
                 local char = GetCharacter()
                 if not myRoot or not char then return end
 
-                -- A. Trigger Nearby Proximity Prompts
+                -- A. Trigger Nearby Proximity Prompts within Selected Range
                 for _, prompt in pairs(Workspace:GetDescendants()) do
                     if prompt:IsA("ProximityPrompt") then
                         local parentPart = prompt.Parent
                         if parentPart and parentPart:IsA("BasePart") then
-                            if (myRoot.Position - parentPart.Position).Magnitude <= 25 then
+                            if (myRoot.Position - parentPart.Position).Magnitude <= CatchRange then
                                 fireproximityprompt(prompt)
                             end
                         end
                     end
                 end
 
-                -- B. Auto Click / Virtual Touch Simulation
-                VirtualUser:CaptureController()
-                VirtualUser:Button1Down(Vector2.new(0, 0))
-
-                -- C. Auto Equip and Activate Tools
-                local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-                local tool = char:FindFirstChildOfClass("Tool") or (backpack and backpack:FindFirstChildOfClass("Tool"))
-                if tool then
-                    if tool.Parent ~= char then
-                        tool.Parent = char
-                    end
-                    tool:Activate()
-                end
-
-                -- D. Scan Players & Target Remotes
+                -- B. Scan Players & Detect Eligible Targets within Selected Catch Range
                 for _, plr in pairs(Players:GetPlayers()) do
                     if IsEnemy(plr) then
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
-                            if dist <= 25 then
+                            
+                            -- Check if player entered the catching range
+                            if dist <= CatchRange then
+                                -- 1. Simulate Touch/Click Action
+                                VirtualUser:CaptureController()
+                                VirtualUser:Button1Down(Vector2.new(0, 0))
+
+                                -- 2. Equip and Activate Tools Automatically
+                                local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+                                local tool = char:FindFirstChildOfClass("Tool") or (backpack and backpack:FindFirstChildOfClass("Tool"))
+                                if tool then
+                                    if tool.Parent ~= char then
+                                        tool.Parent = char
+                                    end
+                                    tool:Activate()
+                                end
+
+                                -- 3. Fire Character Prompts
                                 if plr.Character then
                                     for _, prompt in pairs(plr.Character:GetDescendants()) do
                                         if prompt:IsA("ProximityPrompt") then
@@ -147,6 +151,7 @@ task.spawn(function()
                                     end
                                 end
 
+                                -- 4. Universal Catch Remote Event Firing
                                 for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
                                     if obj:IsA("RemoteEvent") then
                                         local name = obj.Name:lower()
@@ -275,7 +280,7 @@ InputStroke.Thickness = 1
 InputStroke.Color = Color3.fromRGB(60, 40, 30)
 
 local VerifyBtn = Instance.new("TextButton")
-VerifyBtn.Size = UDim2.new(0.85, 0, 0, 34)
+VerifyBtn.Size = UDim2.new(0.85, 0, 0, 0.64)
 VerifyBtn.Position = UDim2.new(0.075, 0, 0.64, 0)
 VerifyBtn.BackgroundColor3 = MoltenOrange
 VerifyBtn.Text = "UNLOCK HUB"
@@ -287,8 +292,8 @@ Instance.new("UICorner", VerifyBtn).CornerRadius = UDim.new(0, 6)
 
 -- Main Hub Window
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 380, 0, 240)
-MainFrame.Position = UDim2.new(0.5, -190, 0.5, -120)
+MainFrame.Size = UDim2.new(0, 380, 0, 280)
+MainFrame.Position = UDim2.new(0.5, -190, 0.5, -140)
 MainFrame.BackgroundColor3 = DarkCharcoal
 MainFrame.Active = true
 MainFrame.Draggable = true
@@ -342,7 +347,7 @@ StatsLabel.Parent = MainFrame
 
 -- Toggles Container
 local ToggleContainer = Instance.new("Frame")
-ToggleContainer.Size = UDim2.new(1, -24, 1, -62)
+ToggleContainer.Size = UDim2.new(1, -24, 0, 130)
 ToggleContainer.Position = UDim2.new(0, 12, 0, 54)
 ToggleContainer.BackgroundTransparency = 1
 ToggleContainer.Parent = MainFrame
@@ -388,6 +393,72 @@ createToggle("Auto Catch")
 createToggle("Auto Dodge")
 createToggle("Auto Run")
 createToggle("Speed Boost")
+
+--------------------------------------------------------------------------------
+-- CATCH RANGE SELECTOR UI
+--------------------------------------------------------------------------------
+local RangeTitle = Instance.new("TextLabel")
+RangeTitle.Size = UDim2.new(1, -24, 0, 18)
+RangeTitle.Position = UDim2.new(0, 12, 0, 190)
+RangeTitle.BackgroundTransparency = 1
+RangeTitle.Text = "CATCH RANGE: 15 STUDS (MEDIUM)"
+RangeTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+RangeTitle.TextSize = 10
+RangeTitle.Font = Enum.Font.GothamBold
+RangeTitle.TextXAlignment = Enum.TextXAlignment.Left
+RangeTitle.Parent = MainFrame
+
+local RangeContainer = Instance.new("Frame")
+RangeContainer.Size = UDim2.new(1, -24, 0, 32)
+RangeContainer.Position = UDim2.new(0, 12, 0, 212)
+RangeContainer.BackgroundTransparency = 1
+RangeContainer.Parent = MainFrame
+
+local RangeGrid = Instance.new("UIGridLayout")
+RangeGrid.CellSize = UDim2.new(0.23, 0, 1, 0)
+RangeGrid.CellPadding = UDim2.new(0.026, 0, 0, 0)
+RangeGrid.Parent = RangeContainer
+
+local RangeButtons = {}
+
+local ranges = {
+    {Name = "10s", Value = 10, Label = "10 STUDS (SHORT)"},
+    {Name = "15s", Value = 15, Label = "15 STUDS (MEDIUM)"},
+    {Name = "20s", Value = 20, Label = "20 STUDS (LONG)"},
+    {Name = "25s", Value = 25, Label = "25 STUDS (VERY LONG)"}
+}
+
+for _, r in ipairs(ranges) do
+    local rBtn = Instance.new("TextButton")
+    rBtn.BackgroundColor3 = (r.Value == CatchRange) and MoltenOrange or CardBG
+    rBtn.Text = r.Name
+    rBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    rBtn.TextSize = 10
+    rBtn.Font = Enum.Font.GothamBold
+    rBtn.Parent = RangeContainer
+    Instance.new("UICorner", rBtn).CornerRadius = UDim.new(0, 6)
+    
+    local rStroke = Instance.new("UIStroke", rBtn)
+    rStroke.Thickness = 1
+    rStroke.Color = (r.Value == CatchRange) and AccentGold or Color3.fromRGB(45, 30, 30)
+    
+    RangeButtons[r.Value] = {Btn = rBtn, Stroke = rStroke}
+
+    rBtn.MouseButton1Click:Connect(function()
+        CatchRange = r.Value
+        RangeTitle.Text = "CATCH RANGE: " .. r.Label
+        
+        for val, data in pairs(RangeButtons) do
+            if val == CatchRange then
+                data.Btn.BackgroundColor3 = MoltenOrange
+                data.Stroke.Color = AccentGold
+            else
+                data.Btn.BackgroundColor3 = CardBG
+                data.Stroke.Color = Color3.fromRGB(45, 30, 30)
+            end
+        end
+    end)
+end
 
 --------------------------------------------------------------------------------
 -- EVENT LISTENERS
