@@ -12,7 +12,7 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10) or LocalPlayer:FindF
 
 if not PlayerGui then return end
 
--- Safe Parent Target (Mobile Executor Friendly UI Injection)
+-- Safe Parent Target
 local TargetParent = PlayerGui
 pcall(function()
     if CoreGui and CoreGui:FindFirstChild("RobloxGui") then
@@ -43,7 +43,7 @@ local FeatureStates = {
 local CanDodge = true
 local CustomSpeed = 32
 
--- Theme Colors (Molten Glass / Inferno)
+-- Theme Colors
 local MoltenOrange = Color3.fromRGB(255, 85, 0)
 local DarkCharcoal = Color3.fromRGB(15, 12, 14)
 local CardBG = Color3.fromRGB(24, 18, 20)
@@ -97,9 +97,9 @@ task.spawn(function()
     end
 end)
 
--- 2. AUTO ATTACK / CATCH
+-- 2. AUTO CATCH / AUTO ATTACK (UPDATED)
 task.spawn(function()
-    while task.wait(0.05) do
+    while task.wait(0.02) do
         if FeatureStates["Auto Attack"] then
             pcall(function()
                 local myRoot = GetRoot()
@@ -111,7 +111,7 @@ task.spawn(function()
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
-                            if dist <= 15 then
+                            if dist <= 20 then
                                 for _, prompt in pairs(plr.Character:GetDescendants()) do
                                     if prompt:IsA("ProximityPrompt") then
                                         fireproximityprompt(prompt)
@@ -125,14 +125,10 @@ task.spawn(function()
                                     tool:Activate()
                                 end
 
-                                VirtualUser:Button1Down(Vector2.new(0, 0))
-                                task.wait(0.01)
-                                VirtualUser:Button1Up(Vector2.new(0, 0))
-
                                 for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
                                     if obj:IsA("RemoteEvent") then
                                         local name = obj.Name:lower()
-                                        if name:find("catch") or name:find("tag") or name:find("hit") or name:find("attack") or name:find("touch") or name:find("action") then
+                                        if name:find("catch") or name:find("tag") or name:find("hit") or name:find("grab") or name:find("touch") or name:find("action") then
                                             obj:FireServer(plr)
                                             obj:FireServer(plr.Character)
                                             obj:FireServer(enemyRoot)
@@ -231,7 +227,6 @@ local KeyStroke = Instance.new("UIStroke", KeyFrame)
 KeyStroke.Thickness = 2
 KeyStroke.Color = MoltenOrange
 
-local Key
 local KeyTitle = Instance.new("TextLabel")
 KeyTitle.Size = UDim2.new(1, 0, 0, 40)
 KeyTitle.BackgroundTransparency = 1
