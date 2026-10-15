@@ -97,51 +97,62 @@ task.spawn(function()
     end
 end)
 
--- 2. AUTO CATCH (REPLACES AUTO ATTACK)
+-- 2. ENHANCED AUTO CATCH / AUTO ATTACK
 task.spawn(function()
-    while task.wait(0.02) do
+    while task.wait(0.01) do
         if FeatureStates["Auto Catch"] then
             pcall(function()
                 local myRoot = GetRoot()
                 local char = GetCharacter()
                 if not myRoot or not char then return end
 
-                -- A. Workspace Proximity Prompts / Ball Catching
-                for _, obj in pairs(Workspace:GetDescendants()) do
-                    if obj:IsA("ProximityPrompt") then
-                        local parentPart = obj.Parent
+                -- A. Trigger Nearby Proximity Prompts
+                for _, prompt in pairs(Workspace:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") then
+                        local parentPart = prompt.Parent
                         if parentPart and parentPart:IsA("BasePart") then
-                            if (myRoot.Position - parentPart.Position).Magnitude <= 22 then
-                                fireproximityprompt(obj)
+                            if (myRoot.Position - parentPart.Position).Magnitude <= 25 then
+                                fireproximityprompt(prompt)
                             end
                         end
                     end
                 end
 
-                -- B. Enemy / Target Catching Range Check
+                -- B. Auto Click / Virtual Touch Simulation
+                VirtualUser:CaptureController()
+                VirtualUser:Button1Down(Vector2.new(0, 0))
+
+                -- C. Auto Equip and Activate Tools
+                local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+                local tool = char:FindFirstChildOfClass("Tool") or (backpack and backpack:FindFirstChildOfClass("Tool"))
+                if tool then
+                    if tool.Parent ~= char then
+                        tool.Parent = char
+                    end
+                    tool:Activate()
+                end
+
+                -- D. Scan Players & Target Remotes
                 for _, plr in pairs(Players:GetPlayers()) do
                     if IsEnemy(plr) then
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
-                            if dist <= 22 then
-                                for _, prompt in pairs(plr.Character:GetDescendants()) do
-                                    if prompt:IsA("ProximityPrompt") then
-                                        fireproximityprompt(prompt)
+                            if dist <= 25 then
+                                -- Fire all character prompts
+                                if plr.Character then
+                                    for _, prompt in pairs(plr.Character:GetDescendants()) do
+                                        if prompt:IsA("ProximityPrompt") then
+                                            fireproximityprompt(prompt)
+                                        end
                                     end
                                 end
 
-                                local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-                                local tool = char:FindFirstChildOfClass("Tool") or (backpack and backpack:FindFirstChildOfClass("Tool"))
-                                if tool then
-                                    if tool.Parent ~= char then tool.Parent = char end
-                                    tool:Activate()
-                                end
-
+                                -- Universal Remote Firing
                                 for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
                                     if obj:IsA("RemoteEvent") then
                                         local name = obj.Name:lower()
-                                        if name:find("catch") or name:find("tag") or name:find("grab") or name:find("touch") or name:find("action") or name:find("hit") then
+                                        if name:find("catch") or name:find("tag") or name:find("grab") or name:find("touch") or name:find("action") or name:find("hit") or name:find("attack") or name:find("pass") or name:find("ball") then
                                             obj:FireServer(plr)
                                             obj:FireServer(plr.Character)
                                             obj:FireServer(enemyRoot)
@@ -334,6 +345,7 @@ StatsLabel.Parent = MainFrame
 -- Toggles Container
 local ToggleContainer = Instance.new("Frame")
 ToggleContainer.Size = UDim2.new(1, -24, 1, -62)
+ToggleContainer
 ToggleContainer.Position = UDim2.new(0, 12, 0, 54)
 ToggleContainer.BackgroundTransparency = 1
 ToggleContainer.Parent = MainFrame
