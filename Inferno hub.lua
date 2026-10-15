@@ -139,7 +139,6 @@ task.spawn(function()
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
                             if dist <= 25 then
-                                -- Fire all character prompts
                                 if plr.Character then
                                     for _, prompt in pairs(plr.Character:GetDescendants()) do
                                         if prompt:IsA("ProximityPrompt") then
@@ -148,7 +147,6 @@ task.spawn(function()
                                     end
                                 end
 
-                                -- Universal Remote Firing
                                 for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
                                     if obj:IsA("RemoteEvent") then
                                         local name = obj.Name:lower()
@@ -345,7 +343,6 @@ StatsLabel.Parent = MainFrame
 -- Toggles Container
 local ToggleContainer = Instance.new("Frame")
 ToggleContainer.Size = UDim2.new(1, -24, 1, -62)
-ToggleContainer
 ToggleContainer.Position = UDim2.new(0, 12, 0, 54)
 ToggleContainer.BackgroundTransparency = 1
 ToggleContainer.Parent = MainFrame
