@@ -40,7 +40,7 @@ local FeatureStates = {
     ["Speed Boost"] = false
 }
 
-local CatchRange = 15 -- Default: Medium Range (15 studs)
+local CatchRange = 25 -- Default Max Catch Range
 local CanDodge = true
 local CustomSpeed = 32
 
@@ -68,14 +68,6 @@ local function GetHumanoid(plr)
     return char and char:FindFirstChildOfClass("Humanoid")
 end
 
-local function IsEnemy(plr)
-    if not plr or plr == LocalPlayer then return false end
-    if LocalPlayer.Team and plr.Team then
-        return LocalPlayer.Team ~= plr.Team
-    end
-    return true
-end
-
 --------------------------------------------------------------------------------
 -- GAMEPLAY AUTOMATION LOOPS
 --------------------------------------------------------------------------------
@@ -98,7 +90,7 @@ task.spawn(function()
     end
 end)
 
--- 2. ENHANCED AUTO CATCH (DYNAMIC RANGE DETECTION)
+-- 2. UNIVERSAL AUTO CATCH
 task.spawn(function()
     while task.wait(0.01) do
         if FeatureStates["Auto Catch"] then
@@ -107,7 +99,7 @@ task.spawn(function()
                 local char = GetCharacter()
                 if not myRoot or not char then return end
 
-                -- A. Trigger Nearby Proximity Prompts within Selected Range
+                -- A. Proximity Prompts Triggering
                 for _, prompt in pairs(Workspace:GetDescendants()) do
                     if prompt:IsA("ProximityPrompt") then
                         local parentPart = prompt.Parent
@@ -119,30 +111,26 @@ task.spawn(function()
                     end
                 end
 
-                -- B. Scan Players & Detect Eligible Targets within Selected Catch Range
+                -- B. Scan All Players within Range
                 for _, plr in pairs(Players:GetPlayers()) do
-                    if IsEnemy(plr) then
+                    if plr ~= LocalPlayer then
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
-                            
-                            -- Check if player entered the catching range
                             if dist <= CatchRange then
-                                -- 1. Simulate Touch/Click Action
+                                -- 1. Virtual Screen Tap/Click
                                 VirtualUser:CaptureController()
                                 VirtualUser:Button1Down(Vector2.new(0, 0))
 
-                                -- 2. Equip and Activate Tools Automatically
+                                -- 2. Tool Equip & Activation
                                 local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
                                 local tool = char:FindFirstChildOfClass("Tool") or (backpack and backpack:FindFirstChildOfClass("Tool"))
                                 if tool then
-                                    if tool.Parent ~= char then
-                                        tool.Parent = char
-                                    end
+                                    if tool.Parent ~= char then tool.Parent = char end
                                     tool:Activate()
                                 end
 
-                                -- 3. Fire Character Prompts
+                                -- 3. Player Character Prompts
                                 if plr.Character then
                                     for _, prompt in pairs(plr.Character:GetDescendants()) do
                                         if prompt:IsA("ProximityPrompt") then
@@ -151,15 +139,12 @@ task.spawn(function()
                                     end
                                 end
 
-                                -- 4. Universal Catch Remote Event Firing
+                                -- 4. Remote Event Firing
                                 for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
                                     if obj:IsA("RemoteEvent") then
-                                        local name = obj.Name:lower()
-                                        if name:find("catch") or name:find("tag") or name:find("grab") or name:find("touch") or name:find("action") or name:find("hit") or name:find("attack") or name:find("pass") or name:find("ball") then
-                                            obj:FireServer(plr)
-                                            obj:FireServer(plr.Character)
-                                            obj:FireServer(enemyRoot)
-                                        end
+                                        obj:FireServer(plr)
+                                        obj:FireServer(plr.Character)
+                                        obj:FireServer(enemyRoot)
                                     end
                                 end
                             end
@@ -180,7 +165,7 @@ task.spawn(function()
                 if not myRoot then return end
 
                 for _, plr in pairs(Players:GetPlayers()) do
-                    if IsEnemy(plr) then
+                    if plr ~= LocalPlayer then
                         local enemyRoot = GetRoot(plr)
                         if enemyRoot then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
@@ -280,7 +265,7 @@ InputStroke.Thickness = 1
 InputStroke.Color = Color3.fromRGB(60, 40, 30)
 
 local VerifyBtn = Instance.new("TextButton")
-VerifyBtn.Size = UDim2.new(0.85, 0, 0, 0.64)
+VerifyBtn.Size = UDim2.new(0.85, 0, 0, 34)
 VerifyBtn.Position = UDim2.new(0.075, 0, 0.64, 0)
 VerifyBtn.BackgroundColor3 = MoltenOrange
 VerifyBtn.Text = "UNLOCK HUB"
@@ -401,7 +386,7 @@ local RangeTitle = Instance.new("TextLabel")
 RangeTitle.Size = UDim2.new(1, -24, 0, 18)
 RangeTitle.Position = UDim2.new(0, 12, 0, 190)
 RangeTitle.BackgroundTransparency = 1
-RangeTitle.Text = "CATCH RANGE: 15 STUDS (MEDIUM)"
+RangeTitle.Text = "CATCH RANGE: 25 STUDS (VERY LONG)"
 RangeTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 RangeTitle.TextSize = 10
 RangeTitle.Font = Enum.Font.GothamBold
