@@ -90,7 +90,6 @@ if tool then
         local character = GetCharacter()
         local root = GetRoot()
         if character and root then
-            -- Perform raycast check forward from the character's root part
             checkHit(root.Position, root.CFrame.LookVector * 10)
         end
     end)
@@ -118,22 +117,24 @@ task.spawn(function()
     end
 end)
 
--- 2. ENHANCED AUTO CATCH (HUSS VALLEY DYNAMIC)
+-- 2. ENHANCED AUTO CATCH (DEBUG VERSION)
 task.spawn(function()
-    while task.wait(0.01) do
+    while task.wait(0.1) do -- Increased wait slightly to prevent console spam
         if FeatureStates["Auto Catch"] then
             pcall(function()
                 local myRoot = GetRoot()
                 local myChar = GetCharacter()
                 if not myRoot or not myChar then return end
 
-                -- A. Proximity Prompts in Workspace
+                -- A. Proximity Prompts
                 for _, prompt in pairs(Workspace:GetDescendants()) do
                     if prompt:IsA("ProximityPrompt") then
                         local parentPart = prompt.Parent
                         if parentPart and parentPart:IsA("BasePart") then
                             if (myRoot.Position - parentPart.Position).Magnitude <= CatchRange then
-                                fireproximityprompt(prompt)
+                                pcall(function()
+                                    fireproximityprompt(prompt)
+                                end)
                             end
                         end
                     end
@@ -148,50 +149,47 @@ task.spawn(function()
                         if enemyRoot and enemyChar then
                             local dist = (myRoot.Position - enemyRoot.Position).Magnitude
                             if dist <= CatchRange then
+                                print("Target in range:", plr.Name, "Distance:", math.floor(dist))
+
                                 -- 1. Virtual Mouse Click & Key Binds
-                                VirtualUser:CaptureController()
-                                VirtualUser:Button1Down(Vector2.new(0, 0))
-                                
                                 pcall(function()
+                                    VirtualUser:CaptureController()
+                                    VirtualUser:Button1Down(Vector2.new(0, 0))
+                                    
                                     VirtualInputManager:SendKeyPressEvent(Enum.KeyCode.E, true, game)
                                     task.wait(0.01)
                                     VirtualInputManager:SendKeyPressEvent(Enum.KeyCode.E, false, game)
-                                    
-                                    VirtualInputManager:SendKeyPressEvent(Enum.KeyCode.F, true, game)
-                                    task.wait(0.01)
-                                    VirtualInputManager:SendKeyPressEvent(Enum.KeyCode.F, false, game)
                                 end)
 
-                                -- 2. Touch Interest / Hitbox Triggering
-                                local myHand = myChar:FindFirstChild("RightHand") or myChar:FindFirstChild("Right Arm") or myRoot
-                                for _, part in pairs(enemyChar:GetChildren()) do
-                                    if part:IsA("BasePart") then
-                                        firetouchinterest(myHand, part, 0)
-                                        task.wait()
-                                        firetouchinterest(myHand, part, 1)
+                                -- 2. Touch Interest Triggering
+                                pcall(function()
+                                    local myHand = myChar:FindFirstChild("RightHand") or myChar:FindFirstChild("Right Arm") or myRoot
+                                    for _, part in pairs(enemyChar:GetChildren()) do
+                                        if part:IsA("BasePart") then
+                                            firetouchinterest(myHand, part, 0)
+                                            task.wait()
+                                            firetouchinterest(myHand, part, 1)
+                                        end
                                     end
-                                end
+                                end)
 
-                                -- 3. Equip & Activate Any Held Tool (including backpack check)
-                                local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-                                if backpack and myChar then
-                                    local sword = backpack:FindFirstChild("Sword") or backpack:FindFirstChildOfClass("Tool")
-                                    if sword then
-                                        sword.Parent = myChar -- Equips the tool
+                                -- 3. Tool Activation
+                                pcall(function()
+                                    local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+                                    local tool = myChar:FindFirstChildOfClass("Tool") or (backpack and backpack:FindFirstChildOfClass("Tool"))
+                                    if tool then
+                                        if tool.Parent ~= myChar then tool.Parent = myChar end
+                                        tool:Activate()
                                     end
-                                end
+                                end)
 
-                                local activeTool = myChar:FindFirstChildOfClass("Tool")
-                                if activeTool then
-                                    activeTool:Activate()
-                                end
-
-                                -- 4. Fire All Potential Catch/Tag Remotes
+                                -- 4. Remote Fire (Check console to see if remotes are found)
                                 for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
                                     if obj:IsA("RemoteEvent") then
-                                        obj:FireServer(plr)
-                                        obj:FireServer(enemyChar)
-                                        obj:FireServer(enemyRoot)
+                                        -- Avoid firing chat or core remotes if possible, or fire them safely
+                                        pcall(function()
+                                            obj:FireServer(plr)
+                                        end)
                                     end
                                 end
                             end
