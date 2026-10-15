@@ -142,7 +142,7 @@ task.spawn(function()
     end
 end)
 
--- 3. AUTO DODGE (LOCKED & UNTOUCHED)
+-- 3. AUTO DODGE (LOCKED & WORKING - UNTOUCHED)
 task.spawn(function()
     while task.wait(0.05) do
         if FeatureStates["Auto Dodge"] and CanDodge then
@@ -177,39 +177,17 @@ task.spawn(function()
     end
 end)
 
--- 4. AUTO RUN TO SAFE ZONE (RE-ENGINEERED FOR WHITE BOUNDARY LINES)
+-- 4. AUTO RUN TO SAFE ZONE (REFINED SMOOTH LINEAR CROSSING)
 task.spawn(function()
-    while task.wait(0.05) do
+    while task.wait(0.03) do
         if FeatureStates["Auto Run"] then
             pcall(function()
                 local hum = GetHumanoid()
                 local myRoot = GetRoot()
                 if not hum or not myRoot then return end
 
-                -- Locate white boundary parts or safe zones in Workspace
-                local targetPos = nil
-                local shortestDist = math.huge
-
-                for _, obj in pairs(Workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") then
-                        local name = obj.Name:lower()
-                        -- Target white lines, boundaries, safe zones, or finish parts
-                        if name:find("line") or name:find("boundary") or name:find("safe") or name:find("finish") or name:find("goal") then
-                            local dist = (myRoot.Position - obj.Position).Magnitude
-                            if dist < shortestDist then
-                                shortestDist = dist
-                                targetPos = obj.Position
-                            end
-                        end
-                    end
-                end
-
-                if targetPos then
-                    hum:MoveTo(targetPos)
-                else
-                    -- Fallback forward cross vector push toward opposite side
-                    hum:Move(myRoot.CFrame.LookVector * 12, true)
-                end
+                -- Lock direction forward and maintain continuous linear momentum across boundaries
+                hum:Move(Vector3.new(0, 0, -1), false)
             end)
         end
     end
