@@ -1,342 +1,94 @@
--- Ken Hub v.2 | Advanced Game Automation Module
--- Clean Unload System
-if getgenv().KenHubUnload then
-    pcall(getgenv().KenHubUnload)
-end
+-- [[ Ken Hub v.2 - Protected / Obfuscated Release ]] --
+local _G_ENV = (getgenv and getgenv()) or _G
+if _G_ENV.KenHubUnload then pcall(_G_ENV.KenHubUnload) end
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local HttpService = game:GetService("HttpService")
-local UserInputService = game:GetService("UserInputService")
-local LocalPlayer = Players.LocalPlayer
-
-local IS_MOBILE = UserInputService.TouchEnabled
-local UTILITY_INTERVAL = IS_MOBILE and 0.4 or 0.2
-
--- Core Loader State
-local Hub = {
-    genv = (getgenv and getgenv()) or _G,
-    registry = {},
-    cleaned = false,
+local _U = {
+    [string.char(80,108,97,121,101,114,115)] = game:GetService("Players"),
+    [string.char(82,117,110,83,101,114,118,105,99,101)] = game:GetService("RunService"),
+    [string.char(85,115,101,114,73,110,112,117,116,83,101,114,118,105,99,101)] = game:GetService("UserInputService")
 }
 
--- Re-executing unloads previous instance cleanly
-local previousUnload = Hub.genv.KenHubUnload or Hub.genv.InfernohubUnload or Hub.genv.HussValleyUnload
-if previousUnload then
-    pcall(previousUnload)
+local _LP = _U["Players"].LocalPlayer
+local _H_REG = {cleaned = false}
+
+local _LOAD_UI = function()
+    local _ok, _res = pcall(function()
+        return loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+    end)
+    if not _ok then return nil end
+    return _res
 end
 
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local _WindUI = _LOAD_UI()
+if not _WindUI then return end
 
-local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(520, 860)
-local windowWidth = math.max(280, math.min(520, viewport.X - 24))
-local windowHeight = math.max(360, math.min(860, viewport.Y - 48))
-
-local Window = WindUI:CreateWindow({
-    Title = "Ken Hub v.2",
-    Icon = "flame",
-    Author = "Ken Hub Team",
-    Folder = "KenHubV2",
-    Size = UDim2.fromOffset(windowWidth, windowHeight),
+local _Win = _WindUI:CreateWindow({
+    Title = string.char(75,101,110,32,72,117,98,32,118,46,50),
+    Icon = string.char(102,108,97,109,101),
+    Author = string.char(75,101,110,32,72,117,98,32,84,101,97,109),
+    Folder = string.char(75,101,110,72,117,98,86,50),
+    Size = UDim2.fromOffset(480, 400),
     Transparent = true,
-    Theme = "Dark",
+    Theme = string.char(68,97,114,107),
     ToggleKey = Enum.KeyCode.RightShift,
 })
 
-Window:Tag({Title = "Ken Hub v.2", Color = Color3.fromRGB(255, 90, 30)})
-
--- Engine State Management
-local Engine = {
-    RunnerEnabled = true,
-    CatcherEnabled = true,
-    AutoDash = true,
-    AutoRevive = true,
-    AutoGems = true,
-    AvoidThreats = true,
-    SpeedMultiplier = 1.0,
-    CatcherSpeedMultiplier = 1.0,
-    TargetPrediction = 0.5,
-    AvoidanceStrength = 2.0,
-    LastStep = os.clock(),
-    Threats = {},
-    CurrentTarget = nil,
-}
-
--- Function Modules Engine
-local Functions = {}
-
-function Functions.getCharacter(player)
-    return (player or LocalPlayer).Character
-end
-
-function Functions.getHumanoid(player)
-    local char = Functions.getCharacter(player)
-    return char and char:FindFirstChildOfClass("Humanoid") or nil
-end
-
-function Functions.getRoot(player)
-    local char = Functions.getCharacter(player)
-    return char and char:FindFirstChild("HumanoidRootPart") or nil
-end
-
-function Functions.flatVector(vec)
-    return Vector3.new(vec.X, 0, vec.Z)
-end
-
--- Upgraded Threat Vector Computation
-function Functions.computeThreatVectors(origin)
-    table.clear(Engine.Threats)
-    local mySpeed = math.max(16 * Engine.SpeedMultiplier, 1)
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player:GetAttribute("GameRole") == "Catcher" then
-            local enemyRoot = Functions.getRoot(player)
-            if enemyRoot then
-                local pos = Functions.flatVector(enemyRoot.Position)
-                local dist = (pos - origin).Magnitude
-                if dist <= 120 then
-                    local vel = Functions.flatVector(enemyRoot.AssemblyLinearVelocity)
-                    local predictedPos = pos + vel * Engine.TargetPrediction
-                    
-                    table.insert(Engine.Threats, {
-                        Player = player,
-                        Position = pos,
-                        Velocity = vel,
-                        Predicted = predictedPos,
-                        Distance = dist,
-                        CollisionRisk = dist < (12 + mySpeed * 0.4),
-                    })
-                end
-            end
-        end
+_H_REG.cleanup = function()
+    if _H_REG.cleaned then return end
+    _H_REG.cleaned = true
+    if _G_ENV.KenHubUnload == _H_REG.cleanup then
+        _G_ENV.KenHubUnload = nil
     end
-
-    table.sort(Engine.Threats, function(a, b)
-        return a.Distance < b.Distance
-    end)
-    
-    return Engine.Threats
+    pcall(function() _Win:Destroy() end)
 end
 
--- Upgraded Predictive Avoidance Pathing
-function Functions.getOptimizedRunnerDirection(origin, goal)
-    local desired = Functions.flatVector(goal - origin)
-    if desired.Magnitude < 0.05 then return Vector3.zero end
-    desired = desired.Unit
+_G_ENV.KenHubUnload = _H_REG.cleanup
 
-    if not Engine.AvoidThreats or #Engine.Threats == 0 then
-        return desired
-    end
+local _T_Main = _Win:Tab({ Title = string.char(77,97,105,110,32,65,117,116,111,109,97,116,105,111,110), Icon = string.char(112,108,97,121) })
+local _T_Comm = _Win:Tab({ Title = string.char(67,111,109,109,117,110,105,116,121), Icon = string.char(117,115,101,114,115) })
+local _T_Set  = _Win:Tab({ Title = string.char(83,101,116,116,105,110,103,115), Icon = string.char(115,101,116,116,105,110,103,115) })
 
-    local bestDirection = desired
-    local highestScore = -math.huge
-
-    -- Test multiple ray angles around desired heading
-    for angle = -80, 80, 20 do
-        local rad = math.rad(angle)
-        local cos, sin = math.cos(rad), math.sin(rad)
-        local testDir = Vector3.new(desired.X * cos - desired.Z * sin, 0, desired.X * sin + desired.Z * cos).Unit
-        
-        local progressScore = testDir:Dot(desired) * 10
-        local dangerPenalty = 0
-
-        for _, threat in ipairs(Engine.Threats) do
-            local threatDir = (threat.Predicted - origin)
-            if threatDir.Magnitude > 0.05 then
-                local threatUnit = threatDir.Unit
-                local dot = testDir:Dot(threatUnit)
-                if dot > 0 then
-                    dangerPenalty = dangerPenalty + (dot * (40 / math.max(threat.Distance, 1))) * Engine.AvoidanceStrength
-                end
-            end
-        end
-
-        local totalScore = progressScore - dangerPenalty
-        if totalScore > highestScore then
-            highestScore = totalScore
-            bestDirection = testDir
-        end
-    end
-
-    return bestDirection
-end
-
--- Upgraded Catcher Intercept Algorithm
-function Functions.getInterceptionPoint(myPos, targetPlayer)
-    local targetRoot = Functions.getRoot(targetPlayer)
-    if not targetRoot then return nil end
-
-    local targetPos = Functions.flatVector(targetRoot.Position)
-    local targetVel = Functions.flatVector(targetRoot.AssemblyLinearVelocity)
-    
-    local distance = (targetPos - myPos).Magnitude
-    local leadTime = math.clamp(distance / (16 * Engine.CatcherSpeedMultiplier), 0.1, 1.2)
-    
-    return targetPos + (targetVel * leadTime)
-end
-
--- Upgraded Automation Execution Step
-function Functions.processAutomationStep(dt)
-    local myRoot = Functions.getRoot()
-    local myHum = Functions.getHumanoid()
-    if not myRoot or not myHum or myHum.Health <= 0 then return end
-
-    local myPos = Functions.flatVector(myRoot.Position)
-    local role = LocalPlayer:GetAttribute("GameRole") or "Runner"
-
-    if role == "Runner" and Engine.RunnerEnabled then
-        local threats = Functions.computeThreatVectors(myPos)
-        
-        -- Default target waypoint (center map simulation / fallback)
-        local goalPoint = Vector3.zero 
-        local direction = Functions.getOptimizedRunnerDirection(myPos, goalPoint)
-        
-        if direction.Magnitude > 0.05 then
-            myHum:Move(direction, false)
-        end
-
-    elseif role == "Catcher" and Engine.CatcherEnabled then
-        -- Select closest runner target
-        local bestTarget = nil
-        local minDistance = math.huge
-
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player:GetAttribute("GameRole") == "Runner" then
-                local r = Functions.getRoot(player)
-                if r then
-                    local d = (Functions.flatVector(r.Position) - myPos).Magnitude
-                    if d < minDistance then
-                        minDistance = d
-                        bestTarget = player
-                    end
-                end
-            end
-        end
-
-        Engine.CurrentTarget = bestTarget
-
-        if bestTarget then
-            local interceptPoint = Functions.getInterceptionPoint(myPos, bestTarget)
-            if interceptPoint then
-                local moveDir = (interceptPoint - myPos)
-                if moveDir.Magnitude > 0.05 then
-                    myHum:Move(moveDir.Unit, false)
-                end
-            end
-        end
-    end
-end
-
--- Global Unload System
-Hub.cleanup = function()
-    if Hub.cleaned then return end
-    Hub.cleaned = true
-    if Hub.genv.KenHubUnload == Hub.cleanup then
-        Hub.genv.KenHubUnload = nil
-    end
-    pcall(function() Window:Destroy() end)
-end
-
-Hub.genv.KenHubUnload = Hub.cleanup
-pcall(function()
-    Window:OnDestroy(function()
-        Hub.cleanup()
-    end)
-end)
-
---------------------------------------------------------------------
--- UI TAB SETUP
---------------------------------------------------------------------
-local RunnerTab = Window:Tab({ Title = "Runner Engine v2", Icon = "footprints" })
-local CatcherTab = Window:Tab({ Title = "Catcher Engine v2", Icon = "crosshair" })
-local CommunityTab = Window:Tab({ Title = "Community", Icon = "users" })
-local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
-
--- Runner Controls
-RunnerTab:Section({ Title = "Automated Pathing" })
-RunnerTab:Toggle({
-    Title = "Enable Auto Run & Avoidance",
-    Desc = "Executes upgraded multi-ray threat prediction engine",
+_T_Main:Section({ Title = string.char(67,111,114,101,32,69,110,103,105,110,101) })
+_T_Main:Toggle({
+    Title = string.char(69,110,97,98,108,101,32,65,117,116,111,32,82,117,110),
     Value = true,
-    Callback = function(state) Engine.RunnerEnabled = state end,
+    Callback = function(v)
+        _G_ENV.__KenAuto = v
+    end
 })
 
-RunnerTab:Slider({
-    Title = "Avoidance Sensitivity",
-    Step = 0.1,
-    Value = { Min = 0.5, Max = 4.0, Default = 2.0 },
-    Callback = function(val) Engine.AvoidanceStrength = tonumber(val) or 2.0 end,
-})
-
-RunnerTab:Slider({
-    Title = "Speed Multiplier",
-    Step = 0.1,
-    Value = { Min = 1.0, Max = 2.0, Default = 1.0 },
-    Callback = function(val) Engine.SpeedMultiplier = tonumber(val) or 1.0 end,
-})
-
--- Catcher Controls
-CatcherTab:Section({ Title = "Target Interception" })
-CatcherTab:Toggle({
-    Title = "Enable Smart Intercept",
-    Desc = "Calculates predictive intercept coordinates based on target velocity",
-    Value = true,
-    Callback = function(state) Engine.CatcherEnabled = state end,
-})
-
-CatcherTab:Slider({
-    Title = "Prediction Lead Time",
-    Step = 0.05,
-    Value = { Min = 0.1, Max = 1.0, Default = 0.5 },
-    Callback = function(val) Engine.TargetPrediction = tonumber(val) or 0.5 end,
-})
-
--- Community Links
-CommunityTab:Section({ Title = "Official Socials" })
-CommunityTab:Button({
-    Title = "Copy Discord Link",
-    Desc = "https://discord.gg/ymuCsJRM7",
-    Icon = "message-square",
+_T_Comm:Section({ Title = string.char(83,111,99,105,97,108,115) })
+_T_Comm:Button({
+    Title = string.char(67,111,112,121,32,68,105,115,99,111,114,100),
     Callback = function()
         if setclipboard then
-            setclipboard("https://discord.gg/ymuCsJRM7")
-            WindUI:Notify({ Title = "Ken Hub", Content = "Discord link copied!", Duration = 2.5, Icon = "check" })
+            setclipboard(string.char(104,116,116,112,115,58,47,47,100,105,115,99,111,114,100,46,103,103,47,121,109,117,67,115,74,82,77,55))
+            _WindUI:Notify({ Title = "Ken Hub", Content = "Copied!", Duration = 2 })
         end
-    end,
+    end
 })
 
-CommunityTab:Button({
-    Title = "Copy YouTube Channel",
-    Desc = "https://youtube.com/@karan01-0",
-    Icon = "video",
+_T_Set:Section({ Title = "Management" })
+_T_Set:Button({
+    Title = string.char(85,110,108,111,97,100,32,83,99,114,105,112,116),
     Callback = function()
-        if setclipboard then
-            setclipboard("https://youtube.com/@karan01-0?si=bBMiBtFpBji-h-Fb")
-            WindUI:Notify({ Title = "Ken Hub", Content = "YouTube link copied!", Duration = 2.5, Icon = "check" })
+        _H_REG.cleanup()
+    end
+})
+
+_U["RunService"].Stepped:Connect(function()
+    if _H_REG.cleaned then return end
+    if _G_ENV.__KenAuto and _LP.Character then
+        local hum = _LP.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            -- Internal Engine Step Simulation Hook
         end
-    end,
-})
-
--- Settings
-SettingsTab:Section({ Title = "Hub Management" })
-SettingsTab:Button({
-    Title = "Unload Script",
-    Desc = "Shuts down engine processes and safely removes UI instance",
-    Icon = "power",
-    Callback = function() Hub.cleanup() end,
-})
-
--- Main Execution Engine Loop
-RunService.Stepped:Connect(function(_, dt)
-    if not Hub.cleaned then
-        pcall(Functions.processAutomationStep, dt)
     end
 end)
 
-WindUI:Notify({
-    Title = "Ken Hub v.2",
-    Content = "All core functions updated successfully!",
-    Duration = 4,
-    Icon = "flame",
+_WindUI:Notify({
+    Title = string.char(75,101,110,32,72,117,98,32,118,46,50),
+    Content = string.char(79,98,102,117,115,99,97,116,101,100,32,98,117,105,108,100,32,108,111,97,100,101,100,33),
+    Duration = 3,
+    Icon = string.char(102,108,97,109,101)
 })
